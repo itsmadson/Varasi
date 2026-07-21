@@ -24,13 +24,14 @@ Vertical-slice order: build a **demoable end-to-end path** first (ingest → cat
 - [x] Seed: live public COGs (Sentinel-2 Tehran 2020+2024 pair, NAIP aerial, swissALTI3D DEM)
 - [ ] (deferred) tags/arbitrary-metadata search filters, COG-validity flag surfaced in API
 
-## Sprint 2 — Control-plane (Go)  `[ ]`
-- [ ] Postgres control schema + migrations (orgs/users/roles/projects/api_keys/audit)
-- [ ] Auth: JWT, API keys, OAuth2 stub; RBAC middleware
-- [ ] Multi-tenancy: org/project scoping, storage quotas
-- [ ] REST + OpenAPI/Swagger; proxy to catalog with tenant filter
-- [ ] Jobs table + Redis queue abstraction; WebSocket hub (progress/alerts)
-- [ ] gRPC protos shared (`proto/`)
+## Sprint 2 — Control-plane (Go)  `[x]`
+- [x] Postgres control schema + embedded migrator (orgs/users/memberships/projects/api_keys/watch_areas/jobs/detections/alerts/audit)
+- [x] Auth: JWT + API keys (vsk_); RBAC middleware (viewer<editor<admin<owner)
+- [x] Multi-tenancy: org/project scoping; storage_quota column (enforcement deferred)
+- [x] REST + OpenAPI/Swagger UI (/docs); reverse proxy to STAC/raster/vector
+- [x] Jobs table + WebSocket hub (per-org broadcast, job.created events)
+- [x] Dockerized (alpine, static bin, self-probe healthcheck); verified in compose
+- [ ] (deferred) OAuth2 provider, tenant-filtered catalog search, Redis queue abstraction, gRPC protos (Sprint 4)
 
 ## Sprint 3 — Web dashboard  `[ ]`
 - [ ] Next.js 15 + TS + Tailwind + shadcn/ui + React Query; dark mode

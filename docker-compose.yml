@@ -117,6 +117,29 @@ services:
       database:
         condition: service_healthy
 
+  # Go control-plane: auth, RBAC, multi-tenancy, jobs, WebSocket, catalog proxy.
+  control-plane:
+    build: ./control-plane
+    environment:
+      CONTROL_PORT: 8080
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-varasi}@database:5432/${POSTGRES_DB:-varasi}?sslmode=disable
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-prod}
+      STAC_URL: http://stac:8080
+      RASTER_URL: http://raster:8082
+      VECTOR_URL: http://vector:8083
+      CORS_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
+    ports:
+      - "${CONTROL_PORT:-8080}:8080"
+    depends_on:
+      database:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/server", "-healthcheck"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
   # Metadata-first ingestion worker. Run on demand: `docker compose run --rm ingest ...`
   ingest:
     build: ./services/ingest-worker
