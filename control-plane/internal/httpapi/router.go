@@ -54,6 +54,10 @@ func (s *Server) Router() http.Handler {
 		r.Get("/watch-areas", s.listWatchAreas)
 		r.With(requireRole("editor")).Post("/watch-areas", s.createWatchArea)
 		r.With(requireRole("editor")).Delete("/watch-areas/{id}", s.deleteWatchArea)
+		r.With(requireRole("editor")).Post("/watch-areas/{id}/evaluate", s.evaluateWatchAreaHandler)
+
+		r.Get("/alerts", s.listAlerts)
+		r.With(requireRole("editor")).Post("/alerts/{id}/ack", s.ackAlert)
 
 		r.Get("/jobs", s.listJobs)
 		r.With(requireRole("editor")).Post("/jobs", s.createJob)
@@ -69,6 +73,10 @@ func (s *Server) Router() http.Handler {
 		r.HandleFunc("/raster/*", s.rasterProxy())
 		r.HandleFunc("/vector/*", s.vectorProxy())
 	})
+
+	// Internal service-to-service hook (token-gated): ingest worker posts new
+	// footprints here to trigger watch-area evaluation.
+	r.Post("/internal/events/item-ingested", s.onItemIngested)
 
 	// WebSocket live feed (auth via ?token= since browsers can't set WS headers).
 	r.Get("/ws", s.wsHandler)

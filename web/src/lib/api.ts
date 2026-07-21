@@ -60,6 +60,12 @@ export const api = {
   watchAreas: () => request<GeoJSONFC>("/api/v1/watch-areas"),
   jobs: () => request<{ jobs: Job[] }>("/api/v1/jobs"),
 
+  alerts: (openOnly = false) =>
+    request<{ alerts: Alert[] }>(`/api/v1/alerts${openOnly ? "?open=true" : ""}`),
+  ackAlert: (id: string) => request<{ status: string }>(`/api/v1/alerts/${id}/ack`, { method: "POST" }),
+  evaluateWatchArea: (id: string) =>
+    request<EvalResult>(`/api/v1/watch-areas/${id}/evaluate`, { method: "POST" }),
+
   detections: () => request<GeoJSONFC>("/api/v1/detections"),
   runDetection: (body: Record<string, unknown>) =>
     request<DetectResult>("/api/v1/detections/run", { method: "POST", body: JSON.stringify(body) }),
@@ -104,6 +110,25 @@ export type Job = {
   progress: number;
   error?: string | null;
   created_at: string;
+};
+export type Alert = {
+  id: string;
+  severity: string;
+  title: string;
+  body?: string | null;
+  acknowledged: boolean;
+  created_at: string;
+  watch_area?: string | null;
+};
+export type EvalResult = {
+  evaluated: boolean;
+  reason?: string;
+  before?: string;
+  after?: string;
+  changed_fraction: number;
+  threshold: number;
+  alerted: boolean;
+  alert_id?: string | null;
 };
 export type Collection = { id: string; title?: string; description?: string };
 export type StacItem = {

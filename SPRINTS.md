@@ -55,11 +55,14 @@ Vertical-slice order: build a **demoable end-to-end path** first (ingest → cat
 - [x] Verified: 82 polygons / 8 km² on Tehran 2020→2024, persisted, via web proxy
 - [ ] (deferred) gRPC transport, before/after swipe + diff-raster overlay, animated time-series playback (Sprint 6)
 
-## Sprint 5 — Watch Areas & Alerts  `[ ]`
-- [ ] Watch Area CRUD (name, geom, tags, priority, threshold, notify settings)
-- [ ] On ingest: spatial intersect → auto-run CD → threshold → alert
-- [ ] Notifiers: email, webhook, telegram, slack, discord, SMS, push
-- [ ] Alerts page + WS live feed
+## Sprint 5 — Watch Areas & Alerts  `[x]`
+- [x] Watch Area CRUD (name, geom, tags, priority, threshold, notify) — create/list/delete/evaluate
+- [x] Alert engine: STAC intersect search → auto-pick before/after → CD → threshold → alert
+- [x] On ingest: ingest-worker posts footprint → internal trigger evaluates intersecting WAs (async)
+- [x] Notifiers: webhook, slack, discord, telegram (HTTP), email (SMTP) — dispatch verified
+- [x] Alerts page (severity, ack, open filter, poll) + evaluate button on watch-areas; WS alert.created events
+- [x] Verified: auto-trigger raised critical+warning alerts on Tehran footprint; ack flow
+- [ ] (deferred) SMS/push channels, per-org catalog scoping in intersect, alert digest batching
 
 ## Sprint 6 — Jobs, Analytics, Time Series hardening  `[ ]`
 - [ ] Distributed workers, retry/backoff, cancellation, progress reporting

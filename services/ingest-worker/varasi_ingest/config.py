@@ -10,6 +10,11 @@ class Settings(BaseSettings):
     # STAC transactions API (stac-fastapi-pgstac)
     stac_url: str = "http://stac:8080"
 
+    # Control-plane hook: notify on each ingested item to trigger watch-area
+    # evaluation. Empty control_url disables the hook.
+    control_url: str = ""
+    internal_token: str = "varasi-internal"
+
     # MinIO / S3 for derived thumbnails
     s3_endpoint: str = "http://minio:9000"
     s3_public_endpoint: str = "http://localhost:9000"

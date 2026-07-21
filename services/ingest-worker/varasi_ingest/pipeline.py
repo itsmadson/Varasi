@@ -65,6 +65,7 @@ def ingest_source(
             client.upsert_item(collection, item)
             ingested += 1
             log("ok", f"ingested {item['id']}")
+            _notify_control_plane(cfg, item, log)
         except Exception as exc:  # keep going; report per-item failures
             failed += 1
             msg = f"{ref.href}: {exc}"
@@ -73,3 +74,20 @@ def ingest_source(
 
     client.close()
     return IngestResult(collection, ingested, failed, errors)
+
+
+def _notify_control_plane(cfg: Settings, item: dict[str, Any], log) -> None:
+    """Best-effort: tell the control-plane a new footprint landed (auto-CD trigger)."""
+    if not cfg.control_url or not item.get("geometry"):
+        return
+    import httpx
+
+    try:
+        httpx.post(
+            f"{cfg.control_url.rstrip('/')}/internal/events/item-ingested",
+            json={"geometry": item["geometry"]},
+            headers={"X-Internal-Token": cfg.internal_token},
+            timeout=10.0,
+        )
+    except Exception as exc:  # never fail ingestion over a notify
+        log("info", f"control-plane notify skipped: {exc}")

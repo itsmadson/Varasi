@@ -1,18 +1,28 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { MapView } from "@/components/MapView";
 import { PageHeader, Spinner } from "@/components/ui";
-import { api } from "@/lib/api";
+import { api, type EvalResult } from "@/lib/api";
 import { useI18n } from "@/i18n/LocaleProvider";
 
 const PRIORITY_COLOR = ["", "var(--danger)", "var(--warn)", "var(--accent)", "var(--muted)", "var(--muted)"];
 
 export default function WatchAreasPage() {
   const { t } = useI18n();
+  const qc = useQueryClient();
   const [focus, setFocus] = useState<string | null>(null);
+  const [evalMap, setEvalMap] = useState<Record<string, EvalResult>>({});
   const wa = useQuery({ queryKey: ["watch-areas"], queryFn: api.watchAreas });
+
+  const evaluate = useMutation({
+    mutationFn: (id: string) => api.evaluateWatchArea(id),
+    onSuccess: (res, id) => {
+      setEvalMap((m) => ({ ...m, [id]: res }));
+      qc.invalidateQueries({ queryKey: ["alerts"] });
+    },
+  });
 
   const fc = useMemo(() => wa.data ?? { type: "FeatureCollection" as const, features: [] }, [wa.data]);
 
@@ -31,21 +41,45 @@ export default function WatchAreasPage() {
                 const p = (f.properties ?? {}) as Record<string, unknown>;
                 const id = String(f.id);
                 const priority = Number(p.priority ?? 3);
+                const res = evalMap[id];
+                const busy = evaluate.isPending && evaluate.variables === id;
                 return (
-                  <button
+                  <div
                     key={id}
                     onClick={() => setFocus(id)}
-                    className="panel flex w-full items-center gap-3 p-3 text-start"
-                    style={{ outline: focus === id ? "2px solid var(--accent)" : "none" }}
+                    className="panel p-3"
+                    style={{ outline: focus === id ? "2px solid var(--accent)" : "none", cursor: "pointer" }}
                   >
-                    <span className="h-2.5 w-2.5 rounded-full" style={{ background: PRIORITY_COLOR[priority] }} />
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-500">{String(p.name)}</div>
-                      <div className="telemetry text-[9px]" style={{ color: "var(--muted)" }}>
-                        P{priority} · θ {Number(p.threshold ?? 0).toFixed(2)}
+                    <div className="flex items-center gap-3">
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ background: PRIORITY_COLOR[priority] }} />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-500">{String(p.name)}</div>
+                        <div className="telemetry text-[9px]" style={{ color: "var(--muted)" }}>
+                          P{priority} · θ {Number(p.threshold ?? 0).toFixed(2)}
+                        </div>
                       </div>
+                      <button
+                        className="chip"
+                        disabled={busy}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          evaluate.mutate(id);
+                        }}
+                      >
+                        {busy ? t("wa.evaluating") : t("wa.evaluate")}
+                      </button>
                     </div>
-                  </button>
+                    {res && (
+                      <div
+                        className="telemetry mt-2 border-t pt-2 text-[10px]"
+                        style={{ color: res.alerted ? "var(--danger)" : "var(--muted)" }}
+                      >
+                        {res.evaluated
+                          ? `${(res.changed_fraction * 100).toFixed(1)}% changed · ${res.alerted ? "ALERT RAISED" : "below threshold"}`
+                          : res.reason}
+                      </div>
+                    )}
+                  </div>
                 );
               })}
               {fc.features.length === 0 && (
