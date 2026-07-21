@@ -1,0 +1,36 @@
+# env / secrets
+.env
+*.local
+
+# node
+node_modules/
+web/.next/
+web/out/
+web/dist/
+.pnp.*
+.yarn/
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# go
+control-plane/bin/
+*.exe
+
+# data / artifacts
+data/
+*.tif
+*.tiff
+*.log
+.DS_Store
+
+# ide
+.vscode/
+.idea/

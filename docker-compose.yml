@@ -1,0 +1,123 @@
+# Varasi infra + catalog stack (eoAPI). Source pixels stay external; DB holds metadata only.
+name: varasi
+
+# Connection env for eoAPI client services (NOT the DB container itself —
+# setting PGHOST on the pgstac image breaks its initdb bootstrap).
+x-pg-client: &pg-client
+  POSTGRES_USER: ${POSTGRES_USER:-varasi}
+  POSTGRES_PASS: ${POSTGRES_PASSWORD:-varasi}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-varasi}
+  POSTGRES_DBNAME: ${POSTGRES_DB:-varasi}
+  POSTGRES_DB: ${POSTGRES_DB:-varasi}
+  POSTGRES_HOST: database
+  POSTGRES_HOST_READER: database
+  POSTGRES_HOST_WRITER: database
+  POSTGRES_PORT: 5432
+
+services:
+  # PostGIS + pgSTAC (catalog schema) preloaded.
+  database:
+    image: ghcr.io/stac-utils/pgstac:v0.9.5
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-varasi}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-varasi}
+      POSTGRES_DB: ${POSTGRES_DB:-varasi}
+    ports:
+      - "${POSTGRES_PORT:-5439}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    command: postgres -N 500
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER:-varasi}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # Object store for derived artifacts only (thumbnails, diff rasters).
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-varasi}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-varasiminio}
+    ports:
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # STAC metadata search API (Raster Profiles + Virtual Datasets).
+  stac:
+    image: ghcr.io/stac-utils/stac-fastapi-pgstac:5.0.2
+    environment:
+      <<: *pg-client
+      APP_HOST: 0.0.0.0
+      APP_PORT: 8080
+      DB_MIN_CONN_SIZE: 1
+      DB_MAX_CONN_SIZE: 10
+      WEB_CONCURRENCY: 4
+      ENABLE_TRANSACTIONS_EXTENSIONS: "true"
+    ports:
+      - "${STAC_PORT:-8081}:8080"
+    depends_on:
+      database:
+        condition: service_healthy
+
+  # Dynamic raster tiler: COG streaming, mosaics, windowed reads, overviews.
+  raster:
+    image: ghcr.io/stac-utils/titiler-pgstac:1.7.1
+    environment:
+      <<: *pg-client
+      PORT: 8082
+      MOSAIC_CONCURRENCY: 5
+      GDAL_CACHEMAX: 200
+      GDAL_DISABLE_READDIR_ON_OPEN: EMPTY_DIR
+      GDAL_HTTP_MERGE_CONSECUTIVE_RANGES: YES
+      GDAL_HTTP_MULTIPLEX: YES
+      GDAL_HTTP_VERSION: 2
+      VSI_CACHE: "TRUE"
+      VSI_CACHE_SIZE: 5000000
+      CPL_VSIL_CURL_ALLOWED_EXTENSIONS: ".tif,.TIF,.tiff"
+    ports:
+      - "${RASTER_PORT:-8082}:8082"
+    command: ["uvicorn", "titiler.pgstac.main:app", "--host", "0.0.0.0", "--port", "8082"]
+    depends_on:
+      database:
+        condition: service_healthy
+
+  # OGC Features + vector tiles (detected change polygons, footprints).
+  vector:
+    image: ghcr.io/developmentseed/tipg:1.0.1
+    environment:
+      <<: *pg-client
+      TIPG_NAME: Varasi Vector
+      APP_HOST: 0.0.0.0
+      APP_PORT: 8083
+    ports:
+      - "${VECTOR_PORT:-8083}:8083"
+    command: ["uvicorn", "tipg.main:app", "--host", "0.0.0.0", "--port", "8083"]
+    depends_on:
+      database:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:
