@@ -32,15 +32,28 @@ function styleFor(b: Basemap): maplibregl.StyleSpecification {
   };
 }
 
+const CLASS_COLORS: (string | string[])[] = [
+  "match",
+  ["get", "change_class"],
+  "urban_growth", "#c46a5a",
+  "vegetation_loss", "#cb9a54",
+  "vegetation_gain", "#8c9258",
+  "water_change", "#5a8fc4",
+  "bare_soil", "#b7bd90",
+  "#a8ae79", // unknown / default
+];
+
 export function MapView({
   footprints,
   rasterItem,
+  detections,
   opacity = 1,
   basemap = "dark",
   className,
 }: {
   footprints?: GeoJSONFC;
   rasterItem?: { collection: string; id: string } | null;
+  detections?: GeoJSONFC;
   opacity?: number;
   basemap?: Basemap;
   className?: string;
@@ -72,6 +85,7 @@ export function MapView({
       ready.current = true;
       syncFootprints(m, footprints);
       syncRaster(m, rasterItem, opacity);
+      syncDetections(m, detections);
     });
     map.current = m;
     return () => {
@@ -90,6 +104,7 @@ export function MapView({
     m.once("styledata", () => {
       syncFootprints(m, footprints);
       syncRaster(m, rasterItem, opacity);
+      syncDetections(m, detections);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [basemap]);
@@ -103,6 +118,11 @@ export function MapView({
     const m = map.current;
     if (m && ready.current) syncRaster(m, rasterItem, opacity);
   }, [rasterItem, opacity]);
+
+  useEffect(() => {
+    const m = map.current;
+    if (m && ready.current) syncDetections(m, detections);
+  }, [detections]);
 
   return <div ref={ref} className={className} style={{ width: "100%", height: "100%" }} />;
 }
@@ -147,4 +167,28 @@ function syncRaster(m: maplibregl.Map, item: { collection: string; id: string } 
     before,
   );
   void itemTileJson; // reserved for bounds-fit enhancement
+}
+
+function syncDetections(m: maplibregl.Map, fc?: GeoJSONFC) {
+  const data = (fc ?? { type: "FeatureCollection", features: [] }) as GeoJSON.FeatureCollection;
+  const src = m.getSource("detections") as maplibregl.GeoJSONSource | undefined;
+  if (src) {
+    src.setData(data);
+    return;
+  }
+  m.addSource("detections", { type: "geojson", data });
+  m.addLayer({
+    id: "detections-fill",
+    type: "fill",
+    source: "detections",
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    paint: { "fill-color": CLASS_COLORS as any, "fill-opacity": 0.35 },
+  });
+  m.addLayer({
+    id: "detections-line",
+    type: "line",
+    source: "detections",
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    paint: { "line-color": CLASS_COLORS as any, "line-width": 1.5 },
+  });
 }

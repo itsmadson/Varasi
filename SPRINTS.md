@@ -44,13 +44,16 @@ Vertical-slice order: build a **demoable end-to-end path** first (ingest → cat
 - [x] Verified: prod build (13 routes), full proxy chain :3000→control-plane→eoAPI, login screenshot
 - [ ] (deferred) shadcn/ui components, swipe/split-screen compare, measure, draw-polygon, layer manager (Sprint 4/6)
 
-## Sprint 4 — Change Detection  `[ ]`
-- [ ] AOI select (polygon/bbox/geojson/draw/saved); find intersecting items; auto-pair by date
-- [ ] `ai-worker`: Open-CD (TinyCD default, ChangeFormer opt), gRPC inference, windowed tiles
-- [ ] Algorithms: image diff, NDVI/NDBI diff, DL segmentation; model switching
-- [ ] Outputs: GeoJSON polygons, area stats, before/after thumbs, confidence, diff raster, heatmap
-- [ ] Classification (agri→urban, deforestation, flood, fire, ...) + confidence
-- [ ] CD page + results viewer; time-series compare (any two dates, playback)
+## Sprint 4 — Change Detection  `[x]`
+- [x] AOI select (GeoJSON polygon/bbox); pick before/after scenes; bbox-intersection AOI
+- [x] `ai-worker`: FastAPI service, windowed streamed COG reads, pluggable algorithm registry
+- [x] Algorithms: image_diff (multi-band Euclidean), vegetation (VARI); TinyCD/Open-CD DL slot (lazy, weights-gated)
+- [x] Outputs: classified GeoJSON polygons, geodesic area, confidence, magnitude, change fraction, class breakdown
+- [x] Classification heuristic: urban_growth/vegetation_loss/gain/water_change/bare_soil/unknown + confidence
+- [x] Control-plane: POST /detections/run (proxy→persist→job), GET /detections (GeoJSON FC)
+- [x] Web /detection page: scene pairing, algorithm/threshold, run, class-colored polygons + stats on map
+- [x] Verified: 82 polygons / 8 km² on Tehran 2020→2024, persisted, via web proxy
+- [ ] (deferred) gRPC transport, before/after swipe + diff-raster overlay, animated time-series playback (Sprint 6)
 
 ## Sprint 5 — Watch Areas & Alerts  `[ ]`
 - [ ] Watch Area CRUD (name, geom, tags, priority, threshold, notify settings)

@@ -14,6 +14,7 @@ type Config struct {
 	STACURL      string
 	RasterURL    string
 	VectorURL    string
+	AIWorkerURL  string
 	AllowOrigins []string
 }
 
@@ -34,6 +35,7 @@ func Load() Config {
 		STACURL:      env("STAC_URL", "http://localhost:8081"),
 		RasterURL:    env("RASTER_URL", "http://localhost:8082"),
 		VectorURL:    env("VECTOR_URL", "http://localhost:8083"),
+		AIWorkerURL:  env("AI_WORKER_URL", "http://localhost:8090"),
 		AllowOrigins: []string{env("CORS_ORIGIN", "http://localhost:3000")},
 	}
 }

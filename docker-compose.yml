@@ -127,6 +127,7 @@ services:
       STAC_URL: http://stac:8080
       RASTER_URL: http://raster:8082
       VECTOR_URL: http://vector:8083
+      AI_WORKER_URL: http://ai-worker:8090
       CORS_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
     ports:
       - "${CONTROL_PORT:-8080}:8080"
@@ -152,6 +153,18 @@ services:
       - "${WEB_PORT:-3000}:3000"
     depends_on:
       - control-plane
+
+  # Change-detection inference service (classical now, DL-pluggable).
+  ai-worker:
+    build: ./services/ai-worker
+    environment:
+      VARASI_AI_STAC_URL: http://stac:8080
+      VARASI_AI_MAX_SIZE: 512
+    ports:
+      - "${AI_PORT:-8090}:8090"
+    depends_on:
+      database:
+        condition: service_healthy
 
   # Metadata-first ingestion worker. Run on demand: `docker compose run --rm ingest ...`
   ingest:

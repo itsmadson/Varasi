@@ -60,11 +60,24 @@ export const api = {
   watchAreas: () => request<GeoJSONFC>("/api/v1/watch-areas"),
   jobs: () => request<{ jobs: Job[] }>("/api/v1/jobs"),
 
+  detections: () => request<GeoJSONFC>("/api/v1/detections"),
+  runDetection: (body: Record<string, unknown>) =>
+    request<DetectResult>("/api/v1/detections/run", { method: "POST", body: JSON.stringify(body) }),
+
   // Catalog (via authenticated proxy)
   collections: () => request<{ collections: Collection[] }>("/catalog/stac/collections"),
   search: (body: Record<string, unknown>) =>
     request<StacFC>("/catalog/stac/search", { method: "POST", body: JSON.stringify(body) }),
 };
+
+export type DetectStats = {
+  changed_area_m2: number;
+  changed_fraction: number;
+  polygon_count: number;
+  algorithm: string;
+  class_breakdown: Record<string, number>;
+};
+export type DetectResult = { type: "FeatureCollection"; features: GeoJSON.Feature[]; stats: DetectStats };
 
 // Tile URL for a STAC item (titiler-pgstac via proxy). Token can't ride tile
 // requests, so raster proxy tiles are fetched with the header-less <img>/GL path;

@@ -57,6 +57,9 @@ func (s *Server) Router() http.Handler {
 
 		r.Get("/jobs", s.listJobs)
 		r.With(requireRole("editor")).Post("/jobs", s.createJob)
+
+		r.Get("/detections", s.listDetections)
+		r.With(requireRole("editor")).Post("/detections/run", s.runDetection)
 	})
 
 	// Catalog proxy (authenticated single origin for the frontend).
