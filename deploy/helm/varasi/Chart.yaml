@@ -1,0 +1,6 @@
+apiVersion: v2
+name: varasi
+description: Varasi — AI geospatial change-detection platform
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

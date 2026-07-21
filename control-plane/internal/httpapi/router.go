@@ -15,6 +15,7 @@ func (s *Server) Router() http.Handler {
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
+	r.Use(metricsMiddleware)
 	r.Use(middleware.Timeout(60_000_000_000)) // 60s
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   append(s.cfg.AllowOrigins, "*"),
@@ -32,6 +33,7 @@ func (s *Server) Router() http.Handler {
 	})
 	r.Get("/openapi.json", s.openAPI)
 	r.Get("/docs", swaggerUI)
+	r.Handle("/metrics", metricsHandler())
 
 	// Public auth.
 	r.Route("/api/v1/auth", func(r chi.Router) {
@@ -64,6 +66,8 @@ func (s *Server) Router() http.Handler {
 
 		r.Get("/detections", s.listDetections)
 		r.With(requireRole("editor")).Post("/detections/run", s.runDetection)
+
+		r.Get("/analytics/summary", s.analyticsSummary)
 	})
 
 	// Catalog proxy (authenticated single origin for the frontend).

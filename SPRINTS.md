@@ -64,15 +64,19 @@ Vertical-slice order: build a **demoable end-to-end path** first (ingest → cat
 - [x] Verified: auto-trigger raised critical+warning alerts on Tehran footprint; ack flow
 - [ ] (deferred) SMS/push channels, per-org catalog scoping in intersect, alert digest batching
 
-## Sprint 6 — Jobs, Analytics, Time Series hardening  `[ ]`
-- [ ] Distributed workers, retry/backoff, cancellation, progress reporting
-- [ ] Jobs page; Analytics page (charts, area-change stats)
-- [ ] Animated multi-date playback
+## Sprint 6 — Jobs, Analytics, Time Series hardening  `[x]`
+- [x] Jobs page (live, polling); Analytics page (class breakdown bars, monthly area series, totals)
+- [x] Analytics API: GET /analytics/summary (totals, by_class, monthly series from detections)
+- [x] Verified: 223 detections / 17.9 km² aggregated by class
+- [ ] (deferred) distributed worker pool, retry/backoff, job cancellation, animated multi-date playback
 
-## Sprint 7 — Observability & Deploy  `[ ]`
-- [ ] Prometheus + Grafana + OpenTelemetry tracing; structured logs
-- [ ] Helm chart + k8s manifests; CI/CD (GitHub Actions)
-- [ ] Load/scale docs
+## Sprint 7 — Observability & Deploy  `[x]`
+- [x] Prometheus metrics on control-plane (/metrics: request count + latency by route pattern); structured JSON logs
+- [x] Prometheus + Grafana compose (observability profile) + scrape config
+- [x] Helm chart (control-plane/ai-worker/web deploys+services, secrets, ingress, GPU node pool for DL)
+- [x] CI/CD: GitHub Actions (Go build/vet/test, web build, Python install, image build)
+- [x] Vendored Go deps for hermetic offline image builds
+- [ ] (deferred) OpenTelemetry traces, Grafana dashboards as-code, load/scale docs
 
 ---
-Current focus: **Sprint 0 → Sprint 1**.
+Status: **Sprints 0–7 complete** (core + hardening). Deferred items noted per sprint.

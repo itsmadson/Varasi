@@ -66,6 +66,7 @@ export const api = {
   evaluateWatchArea: (id: string) =>
     request<EvalResult>(`/api/v1/watch-areas/${id}/evaluate`, { method: "POST" }),
 
+  analytics: () => request<Analytics>("/api/v1/analytics/summary"),
   detections: () => request<GeoJSONFC>("/api/v1/detections"),
   runDetection: (body: Record<string, unknown>) =>
     request<DetectResult>("/api/v1/detections/run", { method: "POST", body: JSON.stringify(body) }),
@@ -129,6 +130,11 @@ export type EvalResult = {
   threshold: number;
   alerted: boolean;
   alert_id?: string | null;
+};
+export type Analytics = {
+  totals: { detections: number; changed_area_m2: number; watch_areas: number; open_alerts: number; scenes: number };
+  by_class: { class: string; count: number; area_m2: number }[];
+  series: { month: string; count: number; area_m2: number }[];
 };
 export type Collection = { id: string; title?: string; description?: string };
 export type StacItem = {

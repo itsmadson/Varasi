@@ -1,0 +1,51 @@
+{{- if .Values.aiWorker.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-ai-worker
+  labels:
+    {{- include "varasi.labels" . | nindent 4 }}
+    app.kubernetes.io/name: ai-worker
+spec:
+  replicas: {{ .Values.aiWorker.replicas }}
+  selector:
+    matchLabels: { app.kubernetes.io/name: ai-worker }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: ai-worker }
+    spec:
+      containers:
+        - name: ai-worker
+          image: {{ include "varasi.image" (dict "registry" .Values.image.registry "name" "ai-worker" "tag" .Values.image.tag) }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports: [{ containerPort: {{ .Values.aiWorker.port }} }]
+          env:
+            - name: VARASI_AI_STAC_URL
+              value: {{ .Values.external.stacUrl | quote }}
+          livenessProbe:
+            httpGet: { path: /healthz, port: {{ .Values.aiWorker.port }} }
+            initialDelaySeconds: 15
+          resources:
+            {{- if .Values.aiWorker.gpu }}
+            limits:
+              nvidia.com/gpu: 1
+            {{- else }}
+            {{- toYaml .Values.aiWorker.resources | nindent 12 }}
+            {{- end }}
+      {{- if .Values.aiWorker.gpu }}
+      nodeSelector:
+        varasi.io/gpu: "true"
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-ai-worker
+  labels:
+    {{- include "varasi.labels" . | nindent 4 }}
+spec:
+  selector: { app.kubernetes.io/name: ai-worker }
+  ports:
+    - port: {{ .Values.aiWorker.port }}
+      targetPort: {{ .Values.aiWorker.port }}
+{{- end }}

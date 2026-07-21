@@ -1,0 +1,70 @@
+{{- if .Values.web.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-web
+  labels:
+    {{- include "varasi.labels" . | nindent 4 }}
+    app.kubernetes.io/name: web
+spec:
+  replicas: {{ .Values.web.replicas }}
+  selector:
+    matchLabels: { app.kubernetes.io/name: web }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: web }
+    spec:
+      containers:
+        - name: web
+          image: {{ include "varasi.image" (dict "registry" .Values.image.registry "name" "web" "tag" .Values.image.tag) }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports: [{ containerPort: {{ .Values.web.port }} }]
+          env:
+            - name: CONTROL_PLANE_URL
+              value: "http://{{ .Release.Name }}-control-plane:{{ .Values.controlPlane.port }}"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-web
+  labels:
+    {{- include "varasi.labels" . | nindent 4 }}
+spec:
+  selector: { app.kubernetes.io/name: web }
+  ports:
+    - port: {{ .Values.web.port }}
+      targetPort: {{ .Values.web.port }}
+{{- end }}
+{{- if .Values.ingress.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}-ingress
+  labels:
+    {{- include "varasi.labels" . | nindent 4 }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Release.Name }}-control-plane
+                port: { number: {{ .Values.controlPlane.port }} }
+          - path: /catalog
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Release.Name }}-control-plane
+                port: { number: {{ .Values.controlPlane.port }} }
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Release.Name }}-web
+                port: { number: {{ .Values.web.port }} }
+{{- end }}

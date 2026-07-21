@@ -1,0 +1,47 @@
+# Varasi Helm values. Stateful backends (Postgres+pgSTAC, Redis, MinIO/S3) and the
+# eoAPI services (stac/raster/vector) are expected as managed/external endpoints —
+# this chart deploys the Varasi-owned services that scale statelessly.
+
+image:
+  registry: ghcr.io/itsmadson
+  pullPolicy: IfNotPresent
+  tag: "0.1.0"
+
+# External dependencies (URLs reachable in-cluster).
+external:
+  databaseUrl: "postgres://postgres:varasi@postgres:5432/varasi?sslmode=disable"
+  stacUrl: "http://stac:8080"
+  rasterUrl: "http://titiler:8082"
+  vectorUrl: "http://tipg:8083"
+
+secrets:
+  jwtSecret: "change-me-in-prod"
+  internalToken: "change-me-internal"
+
+controlPlane:
+  enabled: true
+  replicas: 2
+  port: 8080
+  resources:
+    requests: { cpu: "100m", memory: "128Mi" }
+    limits: { cpu: "500m", memory: "256Mi" }
+
+aiWorker:
+  enabled: true
+  replicas: 2
+  port: 8090
+  # DL inference wants a GPU node pool; classical algorithms run CPU-only.
+  gpu: false
+  resources:
+    requests: { cpu: "500m", memory: "1Gi" }
+    limits: { cpu: "2", memory: "4Gi" }
+
+web:
+  enabled: true
+  replicas: 2
+  port: 3000
+
+ingress:
+  enabled: false
+  className: nginx
+  host: varasi.example.com

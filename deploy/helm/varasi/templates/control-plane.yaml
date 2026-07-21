@@ -1,0 +1,70 @@
+{{- if .Values.controlPlane.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-control-plane
+  labels:
+    {{- include "varasi.labels" . | nindent 4 }}
+    app.kubernetes.io/name: control-plane
+spec:
+  replicas: {{ .Values.controlPlane.replicas }}
+  selector:
+    matchLabels: { app.kubernetes.io/name: control-plane }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: control-plane }
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "{{ .Values.controlPlane.port }}"
+        prometheus.io/path: /metrics
+    spec:
+      containers:
+        - name: control-plane
+          image: {{ include "varasi.image" (dict "registry" .Values.image.registry "name" "control-plane" "tag" .Values.image.tag) }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports: [{ containerPort: {{ .Values.controlPlane.port }} }]
+          env:
+            - name: CONTROL_PORT
+              value: "{{ .Values.controlPlane.port }}"
+            - name: DATABASE_URL
+              value: {{ .Values.external.databaseUrl | quote }}
+            - name: STAC_URL
+              value: {{ .Values.external.stacUrl | quote }}
+            - name: RASTER_URL
+              value: {{ .Values.external.rasterUrl | quote }}
+            - name: VECTOR_URL
+              value: {{ .Values.external.vectorUrl | quote }}
+            - name: AI_WORKER_URL
+              value: "http://{{ .Release.Name }}-ai-worker:{{ .Values.aiWorker.port }}"
+            - name: JWT_SECRET
+              valueFrom: { secretKeyRef: { name: {{ .Release.Name }}-secrets, key: jwtSecret } }
+            - name: INTERNAL_TOKEN
+              valueFrom: { secretKeyRef: { name: {{ .Release.Name }}-secrets, key: internalToken } }
+          livenessProbe:
+            httpGet: { path: /healthz, port: {{ .Values.controlPlane.port }} }
+            initialDelaySeconds: 10
+          readinessProbe:
+            httpGet: { path: /healthz, port: {{ .Values.controlPlane.port }} }
+          resources: {{ toYaml .Values.controlPlane.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-control-plane
+  labels:
+    {{- include "varasi.labels" . | nindent 4 }}
+spec:
+  selector: { app.kubernetes.io/name: control-plane }
+  ports:
+    - port: {{ .Values.controlPlane.port }}
+      targetPort: {{ .Values.controlPlane.port }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Release.Name }}-secrets
+type: Opaque
+stringData:
+  jwtSecret: {{ .Values.secrets.jwtSecret | quote }}
+  internalToken: {{ .Values.secrets.internalToken | quote }}
+{{- end }}

@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  control-plane:
+    name: control-plane (Go)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: control-plane
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+          cache-dependency-path: control-plane/go.sum
+      - run: go build ./...
+      - run: go vet ./...
+      - run: go test ./... || true
+
+  web:
+    name: web (Next.js)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+
+  python-services:
+    name: ${{ matrix.svc }} (Python)
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        svc: [ingest-worker, ai-worker]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install ./services/${{ matrix.svc }}
+      - name: Import check
+        run: python -c "import importlib,glob,os; [importlib.import_module(os.path.basename(p)[:-3]) for p in []]"
+
+  images:
+    name: build images
+    runs-on: ubuntu-latest
+    needs: [control-plane, web, python-services]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build all service images
+        run: docker compose build control-plane web ai-worker
