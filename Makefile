@@ -33,11 +33,14 @@ health: ## Wait for core services healthy
 bucket: ## Create MinIO derived bucket
 	@bash scripts/init_minio.sh
 
+build-ingest: ## Build the ingest worker image
+	$(COMPOSE) --profile tools build ingest
+
 seed: ## Ingest sample public COGs into catalog
-	@cd services/ingest-worker && python -m varasi_ingest.cli seed
+	$(COMPOSE) --profile tools run --rm ingest seed
 
 ingest: ## Ingest a source: make ingest SRC=<uri> COLLECTION=<id>
-	@cd services/ingest-worker && python -m varasi_ingest.cli ingest --uri "$(SRC)" --collection "$(COLLECTION)"
+	$(COMPOSE) --profile tools run --rm ingest ingest --uri "$(SRC)" --collection "$(COLLECTION)"
 
 clean: ## Stop and wipe volumes
 	$(COMPOSE) down -v

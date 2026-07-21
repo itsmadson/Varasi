@@ -14,14 +14,15 @@ Vertical-slice order: build a **demoable end-to-end path** first (ingest → cat
 - [x] README quickstart
 - [x] `make up` brings whole infra healthy (stac:8081 raster:8082 vector:8083 minio:9001)
 
-## Sprint 1 — Catalog & Ingestion  `[ ]`
-- [ ] Define Varasi Collection = Virtual Dataset; Item = Raster Profile (STAC extensions: proj, raster, eo, view)
-- [ ] `ingest-worker`: providers (filesystem, http, s3, cog) → rasterio metadata extract → STAC Item (no pixel copy)
-- [ ] Thumbnail/quicklook generation → MinIO
-- [ ] Register collections + items into pgSTAC; checksum, tags, arbitrary metadata
-- [ ] Search API live (STAC search: bbox, datetime, cloud%, collection, tags)
-- [ ] titiler-pgstac serving tiles + mosaics for items/search
-- [ ] Seed script: sample COGs (public Sentinel/NAIP COG URLs) ingested
+## Sprint 1 — Catalog & Ingestion  `[x]`
+- [x] Varasi Collection = Virtual Dataset; Item = Raster Profile (STAC ext: proj, raster, eo)
+- [x] `ingest-worker`: providers (filesystem, http, s3) → rio-stac metadata extract → STAC Item (no pixel copy)
+- [x] Thumbnail/quicklook generation → MinIO (RGB/grey aware, best-effort)
+- [x] Register collections + items into pgSTAC via stac-fastapi transactions
+- [x] Search API live (STAC search: bbox, datetime, cloud%, collection)
+- [x] titiler-pgstac serving tiles + preview for items (verified: Tehran S2 tile renders)
+- [x] Seed: live public COGs (Sentinel-2 Tehran 2020+2024 pair, NAIP aerial, swissALTI3D DEM)
+- [ ] (deferred) tags/arbitrary-metadata search filters, COG-validity flag surfaced in API
 
 ## Sprint 2 — Control-plane (Go)  `[ ]`
 - [ ] Postgres control schema + migrations (orgs/users/roles/projects/api_keys/audit)

@@ -1,0 +1,27 @@
+[project]
+name = "varasi-ingest"
+version = "0.1.0"
+description = "Varasi metadata-first raster ingestion: providers -> STAC Items (Raster Profiles) in pgSTAC"
+requires-python = ">=3.11"
+dependencies = [
+    "rasterio>=1.3",
+    "rio-stac>=0.10",
+    "rio-tiler>=6.4",
+    "pystac>=1.10",
+    "httpx>=0.27",
+    "boto3>=1.34",
+    "click>=8.1",
+    "pydantic>=2.6",
+    "pydantic-settings>=2.2",
+    "python-dateutil>=2.9",
+]
+
+[project.scripts]
+varasi-ingest = "varasi_ingest.cli:cli"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["varasi_ingest*"]
