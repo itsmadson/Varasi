@@ -33,14 +33,16 @@ Vertical-slice order: build a **demoable end-to-end path** first (ingest → cat
 - [x] Dockerized (alpine, static bin, self-probe healthcheck); verified in compose
 - [ ] (deferred) OAuth2 provider, tenant-filtered catalog search, Redis queue abstraction, gRPC protos (Sprint 4)
 
-## Sprint 3 — Web dashboard  `[ ]`
-- [ ] Next.js 15 + TS + Tailwind + shadcn/ui + React Query; dark mode
-- [ ] Design system: Green Smoke palette tokens; i18n EN(ltr)/FA(rtl) + font pairing
-- [ ] Shell: sidebar nav (Dashboard, Projects, Watch Areas, Image Library, Change Detection, Alerts, Analytics, Users, Settings, Jobs)
-- [ ] MapLibre map: basemap switch, layer manager, opacity slider, COG tiles from titiler
-- [ ] Image Library page: search/filter Raster Profiles, footprints on map, thumbnails
-- [ ] Auth flow wired to control-plane
-- [ ] Swipe + split-screen compare, measure, draw polygon
+## Sprint 3 — Web dashboard  `[x]`
+- [x] Next.js 15 + TS + Tailwind v4 + React Query; dark mode + light toggle
+- [x] Design system: Green Smoke tokens, telemetry aesthetic; i18n EN(ltr)/FA(rtl), Vazirmatn+JetBrains Mono
+- [x] Shell: direction-aware sidebar nav (all pages) + topbar (lang/theme/user)
+- [x] MapLibre map: basemap switch (dark/light/satellite), opacity slider, COG tiles from titiler via auth proxy
+- [x] Image Library page: collection filter, footprints on map, thumbnail grid
+- [x] Auth flow wired to control-plane (login guard, JWT, /me)
+- [x] Dashboard (map hero + stats + scene rail), Jobs/Projects/Watch-areas live pages
+- [x] Verified: prod build (13 routes), full proxy chain :3000→control-plane→eoAPI, login screenshot
+- [ ] (deferred) shadcn/ui components, swipe/split-screen compare, measure, draw-polygon, layer manager (Sprint 4/6)
 
 ## Sprint 4 — Change Detection  `[ ]`
 - [ ] AOI select (polygon/bbox/geojson/draw/saved); find intersecting items; auto-pair by date

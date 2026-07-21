@@ -34,3 +34,5 @@ data/
 # ide
 .vscode/
 .idea/
+web/node_modules/
+web/.next/
