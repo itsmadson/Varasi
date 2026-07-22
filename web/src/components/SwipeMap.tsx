@@ -82,7 +82,14 @@ export function SwipeMap({
     const beforeMap = new maplibregl.Map({ container: beforeRef.current, style: baseStyle(), ...common });
     afterMap.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
 
+    // Maps may be constructed before the flex/grid parent has final size.
+    requestAnimationFrame(() => {
+      afterMap.resize();
+      beforeMap.resize();
+    });
+
     afterMap.on("load", () => {
+      afterMap.resize();
       addItemRaster(afterMap, after);
       afterMap.addSource("det", { type: "geojson", data: detections ?? { type: "FeatureCollection", features: [] } });
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -92,7 +99,10 @@ export function SwipeMap({
       const b = boundsOf(detections);
       if (b) afterMap.fitBounds(b, { padding: 40, duration: 0 });
     });
-    beforeMap.on("load", () => addItemRaster(beforeMap, before));
+    beforeMap.on("load", () => {
+      beforeMap.resize();
+      addItemRaster(beforeMap, before);
+    });
 
     // Keep the two cameras in lockstep.
     let syncing = false;
@@ -107,7 +117,15 @@ export function SwipeMap({
 
     mA.current = afterMap;
     mB.current = beforeMap;
+
+    const ro = new ResizeObserver(() => {
+      afterMap.resize();
+      beforeMap.resize();
+    });
+    if (afterRef.current) ro.observe(afterRef.current);
+
     return () => {
+      ro.disconnect();
       afterMap.remove();
       beforeMap.remove();
       mA.current = null;
@@ -149,7 +167,7 @@ export function SwipeMap({
   return (
     <div
       className={className}
-      style={{ position: "relative", overflow: "hidden" }}
+      style={{ position: "absolute", inset: 0, overflow: "hidden" }}
       onMouseMove={(e) => dragging.current && onDrag(e.clientX, e.currentTarget.getBoundingClientRect())}
       onMouseUp={() => (dragging.current = false)}
       onMouseLeave={() => (dragging.current = false)}
