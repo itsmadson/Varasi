@@ -68,6 +68,8 @@ func (s *Server) Router() http.Handler {
 		r.With(requireRole("editor")).Post("/detections/run", s.runDetection)
 
 		r.Get("/analytics/summary", s.analyticsSummary)
+
+		r.With(requireRole("editor")).Post("/ingest", s.ingestRaster)
 	})
 
 	// Catalog proxy (authenticated single origin for the frontend).

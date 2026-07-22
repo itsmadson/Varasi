@@ -57,7 +57,18 @@ export const api = {
     }),
   me: () => request<{ email: string; org_id: string; role: string }>("/api/v1/me"),
   projects: () => request<{ projects: Project[] }>("/api/v1/projects"),
+  createProject: (body: { name: string; description?: string; collections?: string[] }) =>
+    request<{ id: string }>("/api/v1/projects", { method: "POST", body: JSON.stringify(body) }),
   watchAreas: () => request<GeoJSONFC>("/api/v1/watch-areas"),
+  createWatchArea: (body: Record<string, unknown>) =>
+    request<{ id: string }>("/api/v1/watch-areas", { method: "POST", body: JSON.stringify(body) }),
+  deleteWatchArea: (id: string) =>
+    request<void>(`/api/v1/watch-areas/${id}`, { method: "DELETE" }),
+  ingest: (body: { uri: string; collection: string; datetime?: string }) =>
+    request<{ collection: string; ingested: number; failed: number }>("/api/v1/ingest", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
   jobs: () => request<{ jobs: Job[] }>("/api/v1/jobs"),
 
   alerts: (openOnly = false) =>

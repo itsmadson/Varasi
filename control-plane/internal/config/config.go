@@ -15,6 +15,7 @@ type Config struct {
 	RasterURL    string
 	VectorURL    string
 	AIWorkerURL   string
+	IngestURL     string
 	InternalToken string
 	AllowOrigins  []string
 }
@@ -37,6 +38,7 @@ func Load() Config {
 		RasterURL:    env("RASTER_URL", "http://localhost:8082"),
 		VectorURL:    env("VECTOR_URL", "http://localhost:8083"),
 		AIWorkerURL:   env("AI_WORKER_URL", "http://localhost:8090"),
+		IngestURL:     env("INGEST_URL", "http://localhost:8095"),
 		InternalToken: env("INTERNAL_TOKEN", "varasi-internal"),
 		AllowOrigins:  []string{env("CORS_ORIGIN", "http://localhost:3000")},
 	}

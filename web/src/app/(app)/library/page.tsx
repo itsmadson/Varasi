@@ -1,8 +1,9 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { MapView } from "@/components/MapView";
+import { Modal } from "@/components/Modal";
 import { PageHeader, Spinner } from "@/components/ui";
 import { api, type StacItem } from "@/lib/api";
 import { useI18n } from "@/i18n/LocaleProvider";
@@ -10,10 +11,27 @@ import type { GeoJSONFC } from "@/lib/api";
 
 export default function LibraryPage() {
   const { t } = useI18n();
+  const qc = useQueryClient();
   const [collection, setCollection] = useState<string>("");
   const [selected, setSelected] = useState<StacItem | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const [uri, setUri] = useState("");
+  const [newCol, setNewCol] = useState("");
+  const [date, setDate] = useState("");
 
   const collections = useQuery({ queryKey: ["collections"], queryFn: api.collections });
+
+  const ingest = useMutation({
+    mutationFn: () => api.ingest({ uri, collection: newCol, datetime: date || undefined }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["collections"] });
+      qc.invalidateQueries({ queryKey: ["scenes"] });
+      setAddOpen(false);
+      setUri("");
+      setNewCol("");
+      setDate("");
+    },
+  });
   const search = useQuery({
     queryKey: ["scenes", collection],
     queryFn: () => api.search(collection ? { collections: [collection], limit: 100 } : { limit: 100 }),
@@ -31,7 +49,15 @@ export default function LibraryPage() {
   return (
     <div className="flex h-full flex-col">
       <div className="space-y-4 px-6 pb-4 pt-6">
-        <PageHeader title={t("lib.title")} subtitle={t("lib.subtitle")} />
+        <PageHeader
+          title={t("lib.title")}
+          subtitle={t("lib.subtitle")}
+          actions={
+            <button className="btn" onClick={() => setAddOpen(true)}>
+              + {t("raster.add")}
+            </button>
+          }
+        />
         <div className="flex flex-wrap items-center gap-2">
           <span className="label">{t("lib.collection")}</span>
           <button
@@ -93,6 +119,63 @@ export default function LibraryPage() {
           />
         </div>
       </div>
+
+      <Modal open={addOpen} onClose={() => setAddOpen(false)} title={t("raster.add")}>
+        <form
+          className="space-y-3.5"
+          onSubmit={(e) => {
+            e.preventDefault();
+            ingest.mutate();
+          }}
+        >
+          <div>
+            <label className="label mb-1 block">{t("raster.uri")}</label>
+            <input
+              className="input"
+              value={uri}
+              onChange={(e) => setUri(e.target.value)}
+              placeholder="https://…/scene.tif"
+              required
+            />
+            <p className="telemetry mt-1 text-[9px]" style={{ color: "var(--muted)" }}>
+              {t("raster.uriHint")}
+            </p>
+          </div>
+          <div>
+            <label className="label mb-1 block">{t("raster.collection")}</label>
+            <input
+              className="input"
+              value={newCol}
+              onChange={(e) => setNewCol(e.target.value)}
+              placeholder="my-collection"
+              list="existing-collections"
+              required
+            />
+            <datalist id="existing-collections">
+              {collections.data?.collections.map((c) => (
+                <option key={c.id} value={c.id} />
+              ))}
+            </datalist>
+          </div>
+          <div>
+            <label className="label mb-1 block">{t("raster.date")}</label>
+            <input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          </div>
+          {ingest.isError && (
+            <p className="text-xs" style={{ color: "var(--danger)" }}>
+              {(ingest.error as Error).message}
+            </p>
+          )}
+          <div className="flex justify-end gap-2 pt-1">
+            <button type="button" className="btn-ghost" onClick={() => setAddOpen(false)}>
+              {t("action.cancel")}
+            </button>
+            <button type="submit" className="btn" disabled={!uri || !newCol || ingest.isPending}>
+              {ingest.isPending ? t("raster.ingesting") : t("raster.add")}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }
