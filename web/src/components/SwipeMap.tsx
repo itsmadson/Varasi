@@ -39,7 +39,10 @@ function addItemRaster(m: maplibregl.Map, item: Item) {
   if (m.getLayer("item")) m.removeLayer("item");
   if (m.getSource("item")) m.removeSource("item");
   m.addSource("item", { type: "raster", tiles: [tileURL(item)], tileSize: 256 });
-  m.addLayer({ id: "item", type: "raster", source: "item" });
+  // Put the raster under the detection overlay if it exists.
+  const before = ["det-fill"].find((id) => m.getLayer(id));
+  m.addLayer({ id: "item", type: "raster", source: "item" }, before);
+  ["det-fill", "det-line"].forEach((id) => m.getLayer(id) && m.moveLayer(id));
 }
 
 /**

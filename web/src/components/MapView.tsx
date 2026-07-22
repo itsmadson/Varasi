@@ -147,6 +147,7 @@ function syncFootprints(m: maplibregl.Map, fc?: GeoJSONFC) {
     source: "footprints",
     paint: { "line-color": "#a8ae79", "line-width": 1.2, "line-opacity": 0.7 },
   });
+  raiseOverlays(m);
 }
 
 function syncRaster(m: maplibregl.Map, item: { collection: string; id: string } | null | undefined, opacity: number) {
@@ -161,12 +162,21 @@ function syncRaster(m: maplibregl.Map, item: { collection: string; id: string } 
     `${location.origin}/catalog/raster/collections/${item.collection}/items/${item.id}` +
     `/tiles/WebMercatorQuad/{z}/{x}/{y}.png?assets=data`;
   m.addSource("item-raster", { type: "raster", tiles: [tpl], tileSize: 256 });
-  const before = m.getLayer("footprints-fill") ? "footprints-fill" : undefined;
+  // Insert the raster beneath the vector overlays so footprints/detections stay visible.
+  const before = ["footprints-fill", "detections-fill"].find((id) => m.getLayer(id));
   m.addLayer(
     { id: "item-raster", type: "raster", source: "item-raster", paint: { "raster-opacity": opacity } },
     before,
   );
+  raiseOverlays(m);
   void itemTileJson; // reserved for bounds-fit enhancement
+}
+
+// Keep vector overlays (footprints, then detections) above every raster layer.
+function raiseOverlays(m: maplibregl.Map) {
+  ["footprints-fill", "footprints-line", "detections-fill", "detections-line"].forEach((id) => {
+    if (m.getLayer(id)) m.moveLayer(id); // no beforeId → move to top
+  });
 }
 
 function syncDetections(m: maplibregl.Map, fc?: GeoJSONFC) {
@@ -191,4 +201,5 @@ function syncDetections(m: maplibregl.Map, fc?: GeoJSONFC) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     paint: { "line-color": CLASS_COLORS as any, "line-width": 1.5 },
   });
+  raiseOverlays(m);
 }
