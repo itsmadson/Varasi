@@ -3,6 +3,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { MapView } from "@/components/MapView";
+import { SwipeMap } from "@/components/SwipeMap";
 import { PageHeader } from "@/components/ui";
 import { api, type DetectResult, type StacItem } from "@/lib/api";
 import { useI18n } from "@/i18n/LocaleProvider";
@@ -169,12 +170,21 @@ export default function DetectionPage() {
         </div>
 
         <div className="relative min-h-0">
-          <MapView
-            rasterItem={after ? { collection, id: after.id } : null}
-            detections={detections}
-            opacity={0.9}
-            className="absolute inset-0"
-          />
+          {before && after ? (
+            <SwipeMap
+              before={{ collection, id: before.id }}
+              after={{ collection, id: after.id }}
+              detections={detections}
+              className="absolute inset-0"
+            />
+          ) : (
+            <MapView
+              rasterItem={after ? { collection, id: after.id } : null}
+              detections={detections}
+              opacity={0.9}
+              className="absolute inset-0"
+            />
+          )}
         </div>
       </div>
     </div>
