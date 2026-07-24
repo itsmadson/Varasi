@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { PageHeader, Spinner } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -15,6 +16,7 @@ const SEV_COLOR: Record<string, string> = {
 export default function AlertsPage() {
   const { t } = useI18n();
   const qc = useQueryClient();
+  const router = useRouter();
   const [openOnly, setOpenOnly] = useState(false);
 
   const alerts = useQuery({
@@ -68,8 +70,9 @@ export default function AlertsPage() {
           {list.map((a) => (
             <div
               key={a.id}
+              onClick={() => router.push(`/alerts/${a.id}`)}
               className="panel flex items-start gap-3 p-4"
-              style={{ opacity: a.acknowledged ? 0.55 : 1 }}
+              style={{ opacity: a.acknowledged ? 0.55 : 1, cursor: "pointer" }}
             >
               <span
                 className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full"
@@ -84,6 +87,11 @@ export default function AlertsPage() {
                   >
                     {a.severity}
                   </span>
+                  {a.score != null && a.score > 0 && (
+                    <span className="telemetry text-[9px]" style={{ color: "var(--muted)" }}>
+                      score {a.score.toFixed(0)}
+                    </span>
+                  )}
                 </div>
                 <p className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
                   {a.body}
@@ -93,7 +101,14 @@ export default function AlertsPage() {
                 </div>
               </div>
               {!a.acknowledged && (
-                <button className="btn-ghost text-xs" onClick={() => ack.mutate(a.id)} disabled={ack.isPending}>
+                <button
+                  className="btn-ghost text-xs"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    ack.mutate(a.id);
+                  }}
+                  disabled={ack.isPending}
+                >
                   {t("alerts.ack")}
                 </button>
               )}

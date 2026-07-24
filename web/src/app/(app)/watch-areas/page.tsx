@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { MapView } from "@/components/MapView";
 import { Modal } from "@/components/Modal";
@@ -10,10 +11,12 @@ import { api, type EvalResult } from "@/lib/api";
 import { useI18n } from "@/i18n/LocaleProvider";
 
 const PRIORITY_COLOR = ["", "var(--danger)", "var(--warn)", "var(--accent)", "var(--muted)", "var(--muted)"];
+const ALERT_CLASSES = ["urban_growth", "vegetation_loss", "vegetation_gain", "water_change", "bare_soil"] as const;
 
 export default function WatchAreasPage() {
   const { t } = useI18n();
   const qc = useQueryClient();
+  const router = useRouter();
   const [focus, setFocus] = useState<string | null>(null);
   const [evalMap, setEvalMap] = useState<Record<string, EvalResult>>({});
   const wa = useQuery({ queryKey: ["watch-areas"], queryFn: api.watchAreas });
@@ -23,7 +26,12 @@ export default function WatchAreasPage() {
   const [name, setName] = useState("");
   const [priority, setPriority] = useState(3);
   const [threshold, setThreshold] = useState(0.1);
+  const [maxCloud, setMaxCloud] = useState(60);
+  const [cadence, setCadence] = useState("on-ingest");
+  const [alertClasses, setAlertClasses] = useState<string[]>([]);
   const [geom, setGeom] = useState<GeoJSON.Polygon | null>(null);
+  const toggleClass = (c: string) =>
+    setAlertClasses((cur) => (cur.includes(c) ? cur.filter((x) => x !== c) : [...cur, c]));
 
   const evaluate = useMutation({
     mutationFn: (id: string) => api.evaluateWatchArea(id),
@@ -35,7 +43,15 @@ export default function WatchAreasPage() {
 
   const create = useMutation({
     mutationFn: () =>
-      api.createWatchArea({ name, geometry: geom, priority, threshold }),
+      api.createWatchArea({
+        name,
+        geometry: geom,
+        priority,
+        threshold,
+        max_cloud: maxCloud,
+        cadence,
+        alert_classes: alertClasses,
+      }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["watch-areas"] });
       setOpen(false);
@@ -43,6 +59,9 @@ export default function WatchAreasPage() {
       setGeom(null);
       setPriority(3);
       setThreshold(0.1);
+      setMaxCloud(60);
+      setCadence("on-ingest");
+      setAlertClasses([]);
     },
   });
 
@@ -97,6 +116,18 @@ export default function WatchAreasPage() {
                         }}
                       >
                         {busy ? t("wa.evaluating") : t("wa.evaluate")}
+                      </button>
+                      <button
+                        className="btn-ghost !px-1.5"
+                        title="Open"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          router.push(`/watch-areas/${id}`);
+                        }}
+                      >
+                        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.8">
+                          <path d="M9 6l6 6-6 6" />
+                        </svg>
                       </button>
                       <button
                         className="btn-ghost !px-1.5"
@@ -175,6 +206,51 @@ export default function WatchAreasPage() {
                 onChange={(e) => setThreshold(Number(e.target.value))}
                 className="mt-2 w-full accent-[var(--accent)]"
               />
+            </div>
+
+            <div>
+              <label className="label mb-1 block">Cadence</label>
+              <select className="input" value={cadence} onChange={(e) => setCadence(e.target.value)}>
+                <option value="on-ingest">on ingest</option>
+                <option value="daily">daily</option>
+                <option value="weekly">weekly</option>
+              </select>
+            </div>
+            <div className="sm:col-span-2">
+              <label className="label mb-1 block">Max cloud · {maxCloud}%</label>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={5}
+                value={maxCloud}
+                onChange={(e) => setMaxCloud(Number(e.target.value))}
+                className="mt-2 w-full accent-[var(--accent)]"
+              />
+            </div>
+
+            <div className="sm:col-span-3">
+              <label className="label mb-1.5 block">Alert only on classes (empty = any)</label>
+              <div className="flex flex-wrap gap-1.5">
+                {ALERT_CLASSES.map((c) => {
+                  const on = alertClasses.includes(c);
+                  return (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => toggleClass(c)}
+                      className="chip"
+                      style={{
+                        color: on ? "var(--bg)" : "var(--muted)",
+                        background: on ? "var(--accent)" : "transparent",
+                        borderColor: on ? "var(--accent)" : "var(--border)",
+                      }}
+                    >
+                      {c.replace("_", " ")}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
 

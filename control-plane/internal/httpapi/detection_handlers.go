@@ -19,6 +19,27 @@ type detectResult struct {
 	ChangedFrac  float64
 	PolygonCount int
 	StatsRaw     json.RawMessage
+	Score        float64            // Σ(area × classWeight × confidence)
+	ByClass      map[string]float64 // area per change class
+	TopDetection *uuid.UUID         // largest-area detection, for alert linkage
+}
+
+// classWeight ranks change classes for severity scoring.
+func classWeight(cls string) float64 {
+	switch cls {
+	case "urban_growth":
+		return 1.0
+	case "water_change":
+		return 0.9
+	case "vegetation_loss":
+		return 0.8
+	case "bare_soil":
+		return 0.6
+	case "vegetation_gain":
+		return 0.4
+	default:
+		return 0.3
+	}
 }
 
 // detectAndPersist calls the ai-worker with reqJSON, stores the polygons as
@@ -63,16 +84,35 @@ func (s *Server) detectAndPersist(ctx context.Context, orgID, jobID uuid.UUID, w
 	}
 	_ = json.Unmarshal(body, &envelope)
 
+	byClass := map[string]float64{}
+	var score, topArea float64
+	var topID *uuid.UUID
 	for _, f := range fc.Features {
-		_, _ = s.db.Pool.Exec(ctx,
+		var detID uuid.UUID
+		err := s.db.Pool.QueryRow(ctx,
 			`INSERT INTO varasi.detections
 			   (org_id,job_id,watch_area_id,geom,change_class,confidence,area_m2,before_date,after_date)
 			 VALUES($1,$2,$3, ST_Multi(ST_SetSRID(ST_GeomFromGeoJSON($4),4326)), $5,$6,$7,
-			   $8::timestamptz, $9::timestamptz)`,
+			   $8::timestamptz, $9::timestamptz)
+			 RETURNING id`,
 			orgID, jobID, waID, string(f.Geometry),
 			f.Properties.ChangeClass, f.Properties.Confidence, f.Properties.AreaM2,
 			f.Properties.BeforeDate, f.Properties.AfterDate,
-		)
+		).Scan(&detID)
+		if err != nil {
+			continue
+		}
+		cls := f.Properties.ChangeClass
+		if cls == "" {
+			cls = "unknown"
+		}
+		byClass[cls] += f.Properties.AreaM2
+		score += f.Properties.AreaM2 * classWeight(cls) * f.Properties.Confidence
+		if f.Properties.AreaM2 >= topArea {
+			topArea = f.Properties.AreaM2
+			id := detID
+			topID = &id
+		}
 	}
 	_, _ = s.db.Pool.Exec(ctx,
 		`UPDATE varasi.jobs SET status='succeeded',progress=1,result=$2,updated_at=now() WHERE id=$1`,
@@ -84,6 +124,9 @@ func (s *Server) detectAndPersist(ctx context.Context, orgID, jobID uuid.UUID, w
 		ChangedFrac:  fc.Stats.ChangedFraction,
 		PolygonCount: fc.Stats.PolygonCount,
 		StatsRaw:     envelope.Stats,
+		Score:        score,
+		ByClass:      byClass,
+		TopDetection: topID,
 	}, nil
 }
 
@@ -127,9 +170,18 @@ func (s *Server) runDetection(w http.ResponseWriter, r *http.Request) {
 // listDetections returns stored detections for the org as a GeoJSON FeatureCollection.
 func (s *Server) listDetections(w http.ResponseWriter, r *http.Request) {
 	c := claimsFrom(r.Context())
+	// Optional ?watch_area=<uuid> filter (feeds the watch-area timeline + alert overlay).
+	args := []any{c.OrgID}
+	where := `org_id=$1`
+	if wa := r.URL.Query().Get("watch_area"); wa != "" {
+		if id, err := uuid.Parse(wa); err == nil {
+			args = append(args, id)
+			where += ` AND watch_area_id=$2`
+		}
+	}
 	rows, err := s.db.Pool.Query(r.Context(),
-		`SELECT id,change_class,confidence,area_m2,before_date,after_date,created_at,ST_AsGeoJSON(geom)
-		 FROM varasi.detections WHERE org_id=$1 ORDER BY created_at DESC LIMIT 2000`, c.OrgID)
+		`SELECT id,job_id,watch_area_id,change_class,confidence,area_m2,before_date,after_date,created_at,ST_AsGeoJSON(geom)
+		 FROM varasi.detections WHERE `+where+` ORDER BY created_at DESC LIMIT 2000`, args...)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "query")
 		return
@@ -138,11 +190,12 @@ func (s *Server) listDetections(w http.ResponseWriter, r *http.Request) {
 	features := []map[string]any{}
 	for rows.Next() {
 		var id uuid.UUID
+		var jobID, waID *uuid.UUID
 		var cls *string
 		var conf, area *float64
 		var bd, ad, created any
 		var geojson string
-		if err := rows.Scan(&id, &cls, &conf, &area, &bd, &ad, &created, &geojson); err != nil {
+		if err := rows.Scan(&id, &jobID, &waID, &cls, &conf, &area, &bd, &ad, &created, &geojson); err != nil {
 			writeErr(w, http.StatusInternalServerError, "scan")
 			return
 		}
@@ -153,6 +206,7 @@ func (s *Server) listDetections(w http.ResponseWriter, r *http.Request) {
 			"properties": map[string]any{
 				"change_class": cls, "confidence": conf, "area_m2": area,
 				"before_date": bd, "after_date": ad, "created_at": created,
+				"job_id": jobID, "watch_area_id": waID,
 			},
 		})
 	}

@@ -73,12 +73,14 @@ export const api = {
 
   alerts: (openOnly = false) =>
     request<{ alerts: Alert[] }>(`/api/v1/alerts${openOnly ? "?open=true" : ""}`),
+  alert: (id: string) => request<AlertDetail>(`/api/v1/alerts/${id}`),
   ackAlert: (id: string) => request<{ status: string }>(`/api/v1/alerts/${id}/ack`, { method: "POST" }),
   evaluateWatchArea: (id: string) =>
     request<EvalResult>(`/api/v1/watch-areas/${id}/evaluate`, { method: "POST" }),
 
   analytics: () => request<Analytics>("/api/v1/analytics/summary"),
-  detections: () => request<GeoJSONFC>("/api/v1/detections"),
+  detections: (watchArea?: string) =>
+    request<GeoJSONFC>(`/api/v1/detections${watchArea ? `?watch_area=${watchArea}` : ""}`),
   runDetection: (body: Record<string, unknown>) =>
     request<DetectResult>("/api/v1/detections/run", { method: "POST", body: JSON.stringify(body) }),
 
@@ -131,6 +133,15 @@ export type Alert = {
   acknowledged: boolean;
   created_at: string;
   watch_area?: string | null;
+  watch_area_id?: string | null;
+  score?: number;
+};
+export type AlertDetail = {
+  alert: Alert;
+  watch_area_geom?: GeoJSON.Geometry | null;
+  scenes: { collection?: string | null; before?: string | null; after?: string | null };
+  detections: GeoJSONFC;
+  stats: { changed_area_m2: number; polygon_count: number; class_breakdown: Record<string, number> };
 };
 export type EvalResult = {
   evaluated: boolean;

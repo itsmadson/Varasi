@@ -69,13 +69,18 @@ type stacFeature struct {
 	} `json:"properties"`
 }
 
-// searchScenes finds scenes intersecting a geometry, newest first.
-func (s *Server) searchScenes(ctx context.Context, geom json.RawMessage, limit int) ([]stacFeature, error) {
-	body, _ := json.Marshal(map[string]any{
+// searchScenes finds scenes intersecting a geometry, newest first. When maxCloud
+// is > 0 it filters out scenes cloudier than that (eo:cloud_cover).
+func (s *Server) searchScenes(ctx context.Context, geom json.RawMessage, limit, maxCloud int) ([]stacFeature, error) {
+	q := map[string]any{
 		"intersects": geom,
 		"limit":      limit,
 		"sortby":     []map[string]string{{"field": "datetime", "direction": "desc"}},
-	})
+	}
+	if maxCloud > 0 {
+		q["query"] = map[string]any{"eo:cloud_cover": map[string]any{"lte": maxCloud}}
+	}
+	body, _ := json.Marshal(q)
 	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, s.cfg.STACURL+"/search", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	client := &http.Client{Timeout: 30 * time.Second}
@@ -112,15 +117,17 @@ func (s *Server) evaluateWatchArea(ctx context.Context, orgID, waID uuid.UUID) (
 	var threshold float64
 	var geom []byte
 	var notifyRaw []byte
+	var maxCloud int
+	var alertClasses []string
 	err := s.db.Pool.QueryRow(ctx,
-		`SELECT name, threshold, ST_AsGeoJSON(geom), notify
+		`SELECT name, threshold, ST_AsGeoJSON(geom), notify, max_cloud, alert_classes
 		 FROM varasi.watch_areas WHERE id=$1 AND org_id=$2`, waID, orgID,
-	).Scan(&name, &threshold, &geom, &notifyRaw)
+	).Scan(&name, &threshold, &geom, &notifyRaw, &maxCloud, &alertClasses)
 	if err != nil {
 		return evalResult{}, fmt.Errorf("watch area not found")
 	}
 
-	scenes, err := s.searchScenes(ctx, geom, 12)
+	scenes, err := s.searchScenes(ctx, geom, 12, maxCloud)
 	if err != nil {
 		return evalResult{}, fmt.Errorf("scene search failed: %w", err)
 	}
@@ -170,6 +177,21 @@ func (s *Server) evaluateWatchArea(ctx context.Context, orgID, waID uuid.UUID) (
 		return out, nil
 	}
 
+	// Class filter: if the area only alerts on specific classes, require at least
+	// one such class to be present in this detection.
+	if len(alertClasses) > 0 {
+		hit := false
+		for _, cls := range alertClasses {
+			if res.ByClass[cls] > 0 {
+				hit = true
+				break
+			}
+		}
+		if !hit {
+			return out, nil
+		}
+	}
+
 	// Threshold crossed → raise alert + notify.
 	title := fmt.Sprintf("Change detected in %q", name)
 	body := fmt.Sprintf("%.1f%% of the watch area changed between %s and %s (%d regions, %.2f km²).",
@@ -181,8 +203,9 @@ func (s *Server) evaluateWatchArea(ctx context.Context, orgID, waID uuid.UUID) (
 	}
 	var alertID uuid.UUID
 	_ = s.db.Pool.QueryRow(ctx,
-		`INSERT INTO varasi.alerts(org_id,watch_area_id,severity,title,body) VALUES($1,$2,$3,$4,$5) RETURNING id`,
-		orgID, waID, severity, title, body,
+		`INSERT INTO varasi.alerts(org_id,watch_area_id,detection_id,severity,title,body,score)
+		 VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+		orgID, waID, res.TopDetection, severity, title, body, res.Score,
 	).Scan(&alertID)
 
 	var notifyCfg map[string]any

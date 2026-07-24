@@ -177,3 +177,183 @@ body {
   letter-spacing: 0.06em;
   color: var(--muted);
 }
+
+/* ── Reports ───────────────────────────────────────────────────────────────
+   The report container is hidden on screen; @media print isolates it so the
+   browser "Save as PDF" emits a clean branded document. */
+.report-print {
+  display: none;
+}
+
+.report-page {
+  background: #ffffff;
+  color: #262618;
+  font-family: var(--font-mono, monospace), monospace;
+}
+.report-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  border-bottom: 2px solid #757847;
+  padding-bottom: 10px;
+}
+.report-mark {
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.04em;
+  color: #5e5f3a;
+}
+.report-kind {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: #8f9576;
+  margin-top: 2px;
+}
+.report-stamp {
+  font-size: 10px;
+  color: #8f9576;
+}
+.report-title {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 18px 0 2px;
+}
+.report-sub {
+  font-size: 12px;
+  color: #5e5f3a;
+}
+.report-range {
+  font-size: 11px;
+  color: #8f9576;
+  margin-top: 2px;
+}
+.report-meta {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 16px 0;
+}
+.report-meta-item {
+  border: 1px solid #d2d6b9;
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+.report-meta-label {
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #8f9576;
+}
+.report-meta-value {
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 3px;
+  word-break: break-word;
+}
+.report-map {
+  border: 1px solid #d2d6b9;
+  border-radius: 6px;
+  overflow: hidden;
+  margin: 8px 0 16px;
+}
+.report-map img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.report-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.report-stat {
+  border: 1px solid #d2d6b9;
+  border-radius: 6px;
+  padding: 10px;
+  text-align: center;
+}
+.report-stat-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: #5e5f3a;
+}
+.report-stat-label {
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #8f9576;
+  margin-top: 3px;
+}
+.report-section-title {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #8f9576;
+  margin-bottom: 8px;
+}
+.report-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  margin-bottom: 7px;
+}
+.report-bar-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 130px;
+  text-transform: capitalize;
+}
+.report-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.report-bar-track {
+  flex: 1;
+  height: 8px;
+  background: #e8eada;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.report-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+}
+.report-bar-value {
+  width: 72px;
+  text-align: right;
+  color: #5e5f3a;
+}
+.report-foot {
+  margin-top: 22px;
+  border-top: 1px solid #d2d6b9;
+  padding-top: 8px;
+  font-size: 9px;
+  color: #8f9576;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
+  body * {
+    visibility: hidden !important;
+  }
+  .report-print,
+  .report-print * {
+    visibility: visible !important;
+  }
+  .report-print {
+    display: block !important;
+    position: absolute;
+    inset: 0;
+    background: #ffffff;
+  }
+}

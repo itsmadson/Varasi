@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { MapView } from "@/components/MapView";
 import { PageHeader, Stat } from "@/components/ui";
@@ -10,6 +11,7 @@ import type { GeoJSONFC } from "@/lib/api";
 
 export default function DashboardPage() {
   const { t } = useI18n();
+  const router = useRouter();
   const [basemap, setBasemap] = useState<"dark" | "light" | "satellite">("dark");
   const [opacity, setOpacity] = useState(1);
   const [selected, setSelected] = useState<StacItem | null>(null);
@@ -20,6 +22,10 @@ export default function DashboardPage() {
     queryFn: () => api.search({ limit: 100 }),
   });
   const watch = useQuery({ queryKey: ["watch-areas"], queryFn: api.watchAreas });
+  const alerts = useQuery({ queryKey: ["alerts"], queryFn: () => api.alerts(), refetchInterval: 10000 });
+
+  const openAlerts = (alerts.data?.alerts ?? []).filter((a) => !a.acknowledged);
+  const hottest = [...(alerts.data?.alerts ?? [])].sort((a, b) => (b.score ?? 0) - (a.score ?? 0)).slice(0, 4);
 
   const footprints: GeoJSONFC = useMemo(
     () => ({
@@ -43,7 +49,7 @@ export default function DashboardPage() {
           <Stat label={t("stat.scenes")} value={scenes.length} hint="pgSTAC" />
           <Stat label={t("stat.collections")} value={collections.data?.collections.length ?? 0} />
           <Stat label={t("stat.watchAreas")} value={watch.data?.features.length ?? 0} />
-          <Stat label={t("stat.alerts")} value={0} />
+          <Stat label={t("stat.alerts")} value={openAlerts.length} />
         </div>
       </div>
 
@@ -110,6 +116,30 @@ export default function DashboardPage() {
               </div>
             )}
           </div>
+
+          {hottest.length > 0 && (
+            <>
+              <div className="label mb-1 mt-3">Hottest areas</div>
+              <div className="space-y-1">
+                {hottest.map((a) => (
+                  <button
+                    key={a.id}
+                    onClick={() => router.push(`/alerts/${a.id}`)}
+                    className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-start text-[11px] hover:bg-[var(--panel-2)]"
+                  >
+                    <span
+                      className="h-2 w-2 rounded-full"
+                      style={{ background: a.severity === "critical" ? "var(--danger)" : a.severity === "warning" ? "var(--warn)" : "var(--accent)" }}
+                    />
+                    <span className="flex-1 truncate" style={{ color: "var(--muted)" }}>
+                      {a.watch_area ?? a.title}
+                    </span>
+                    <span className="telemetry text-[9px]">{(a.score ?? 0).toFixed(0)}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>

@@ -1,12 +1,14 @@
 "use client";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { MapView } from "@/components/MapView";
 import { SwipeMap } from "@/components/SwipeMap";
+import { ReportDoc, type ReportModel } from "@/components/ReportDoc";
 import { PageHeader } from "@/components/ui";
 import { api, type DetectResult, type StacItem } from "@/lib/api";
 import { useI18n } from "@/i18n/LocaleProvider";
+import { classBreakdown, downloadCSV, downloadGeoJSON, km2, nearestScene, printReport } from "@/lib/report";
 import type { GeoJSONFC } from "@/lib/api";
 
 const ALGORITHMS = ["image_diff", "vegetation"] as const;
@@ -32,15 +34,25 @@ function bboxPolygon(bb: number[]) {
 function date(i: StacItem) {
   return String(i.properties.datetime ?? "").slice(0, 10);
 }
+function cloud(i: StacItem): number | null {
+  const c = i.properties["eo:cloud_cover"];
+  return typeof c === "number" ? c : null;
+}
 
 export default function DetectionPage() {
   const { t } = useI18n();
   const [collection, setCollection] = useState("sentinel-2-tehran");
+  const [mode, setMode] = useState<"scene" | "date">("scene");
   const [beforeId, setBeforeId] = useState<string>("");
   const [afterId, setAfterId] = useState<string>("");
+  const [beforeDate, setBeforeDate] = useState<string>("");
+  const [afterDate, setAfterDate] = useState<string>("");
+  const [maxCloud, setMaxCloud] = useState(100);
   const [algorithm, setAlgorithm] = useState<(typeof ALGORITHMS)[number]>("image_diff");
   const [threshold, setThreshold] = useState(0.5);
   const [result, setResult] = useState<DetectResult | null>(null);
+
+  const capture = useRef<(() => string | null) | null>(null);
 
   const collections = useQuery({ queryKey: ["collections"], queryFn: api.collections });
   const scenes = useQuery({
@@ -50,8 +62,24 @@ export default function DetectionPage() {
   });
 
   const items = scenes.data?.features ?? [];
-  const before = items.find((i) => i.id === beforeId);
-  const after = items.find((i) => i.id === afterId);
+  const cloudy = useMemo(
+    () => items.filter((i) => cloud(i) == null || (cloud(i) as number) <= maxCloud),
+    [items, maxCloud],
+  );
+
+  // Effective before/after scene depends on the mode.
+  const { before, after } = useMemo(() => {
+    if (mode === "date") {
+      return {
+        before: nearestScene(cloudy, beforeDate ? `${beforeDate}T00:00:00Z` : "") ?? undefined,
+        after: nearestScene(cloudy, afterDate ? `${afterDate}T00:00:00Z` : "") ?? undefined,
+      };
+    }
+    return {
+      before: items.find((i) => i.id === beforeId),
+      after: items.find((i) => i.id === afterId),
+    };
+  }, [mode, cloudy, items, beforeDate, afterDate, beforeId, afterId]);
 
   const run = useMutation({
     mutationFn: () => {
@@ -74,10 +102,42 @@ export default function DetectionPage() {
     [result],
   );
 
+  const exportPdf = () => {
+    setReport(buildReport());
+    // Let the report DOM (incl. the map image) paint, then print.
+    requestAnimationFrame(() => requestAnimationFrame(() => printReport()));
+  };
+  const [report, setReport] = useState<ReportModel | null>(null);
+  const buildReport = (): ReportModel => {
+    const fc = detections ?? { type: "FeatureCollection", features: [] };
+    return {
+      kind: "Change Detection",
+      title: `${collection}`,
+      subtitle: before && after ? `${date(before)} → ${date(after)}` : undefined,
+      dateRange: `Algorithm ${algorithm} · threshold ${threshold.toFixed(2)}`,
+      meta: [
+        { label: "Before scene", value: before ? `${date(before)} · ${before.id.slice(0, 16)}` : "—" },
+        { label: "After scene", value: after ? `${date(after)} · ${after.id.slice(0, 16)}` : "—" },
+        { label: "Collection", value: collection },
+      ],
+      mapImage: capture.current?.() ?? null,
+      stats: result
+        ? [
+            { label: "Regions", value: String(result.stats.polygon_count) },
+            { label: "Changed area", value: `${km2(result.stats.changed_area_m2)} km²` },
+            { label: "Changed", value: `${(result.stats.changed_fraction * 100).toFixed(1)}%` },
+            { label: "Classes", value: String(Object.keys(result.stats.class_breakdown).length) },
+          ]
+        : [],
+      classBreakdown: classBreakdown(fc),
+      footerNote: "Ad-hoc change-detection report · Varasi",
+    };
+  };
+
   return (
     <div className="flex h-full flex-col">
       <div className="px-6 pb-4 pt-6">
-        <PageHeader title={t("nav.detection")} subtitle="Pair two scenes through time and detect change." />
+        <PageHeader title={t("nav.detection")} subtitle="Pair two scenes — or two dates — and detect change." />
       </div>
 
       <div className="grid min-h-0 flex-1 grid-cols-1 border-t lg:grid-cols-[340px_1fr]">
@@ -100,12 +160,61 @@ export default function DetectionPage() {
             </select>
           </Field>
 
-          <Field label="Before">
-            <SceneSelect items={items} value={beforeId} onChange={setBeforeId} />
+          {/* Mode toggle */}
+          <Field label="Pick by">
+            <div className="flex gap-1">
+              {(["scene", "date"] as const).map((mo) => (
+                <button
+                  key={mo}
+                  onClick={() => setMode(mo)}
+                  className="chip flex-1 text-center"
+                  style={{
+                    color: mode === mo ? "var(--bg)" : "var(--muted)",
+                    background: mode === mo ? "var(--accent)" : "transparent",
+                    borderColor: mode === mo ? "var(--accent)" : "var(--border)",
+                  }}
+                >
+                  {mo === "scene" ? "Scene" : "Date"}
+                </button>
+              ))}
+            </div>
           </Field>
-          <Field label="After">
-            <SceneSelect items={items} value={afterId} onChange={setAfterId} />
-          </Field>
+
+          {mode === "scene" ? (
+            <>
+              <Field label="Before">
+                <SceneSelect items={items} value={beforeId} onChange={setBeforeId} />
+              </Field>
+              <Field label="After">
+                <SceneSelect items={items} value={afterId} onChange={setAfterId} />
+              </Field>
+            </>
+          ) : (
+            <>
+              <Field label="Before date">
+                <input type="date" className="input" value={beforeDate} onChange={(e) => setBeforeDate(e.target.value)} />
+              </Field>
+              <Field label="After date">
+                <input type="date" className="input" value={afterDate} onChange={(e) => setAfterDate(e.target.value)} />
+              </Field>
+              <Field label={`Max cloud · ${maxCloud}%`}>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={5}
+                  value={maxCloud}
+                  onChange={(e) => setMaxCloud(Number(e.target.value))}
+                  className="w-full accent-[var(--accent)]"
+                />
+              </Field>
+              <div className="panel space-y-1 p-3">
+                <div className="label">Chosen scenes</div>
+                <ChosenRow k="Before" i={before} target={beforeDate} />
+                <ChosenRow k="After" i={after} target={afterDate} />
+              </div>
+            </>
+          )}
 
           <Field label="Algorithm">
             <div className="flex gap-1">
@@ -151,7 +260,7 @@ export default function DetectionPage() {
             <div className="panel space-y-2 p-3">
               <div className="label">Result</div>
               <Row k="Polygons" v={result.stats.polygon_count} />
-              <Row k="Changed area" v={`${(result.stats.changed_area_m2 / 1e6).toFixed(2)} km²`} />
+              <Row k="Changed area" v={`${km2(result.stats.changed_area_m2)} km²`} />
               <Row k="Changed" v={`${(result.stats.changed_fraction * 100).toFixed(1)}%`} />
               <div className="label mt-2">By class</div>
               {Object.entries(result.stats.class_breakdown)
@@ -162,9 +271,23 @@ export default function DetectionPage() {
                     <span className="flex-1" style={{ color: "var(--muted)" }}>
                       {k.replace("_", " ")}
                     </span>
-                    <span className="telemetry">{(v / 1e6).toFixed(2)} km²</span>
+                    <span className="telemetry">{km2(v)} km²</span>
                   </div>
                 ))}
+
+              {/* Export row */}
+              <div className="label mt-3">Export</div>
+              <div className="grid grid-cols-3 gap-1.5">
+                <button className="chip" onClick={exportPdf}>
+                  PDF
+                </button>
+                <button className="chip" onClick={() => downloadGeoJSON(detections!, `varasi-${collection}`)}>
+                  GeoJSON
+                </button>
+                <button className="chip" onClick={() => downloadCSV(detections!, `varasi-${collection}`)}>
+                  CSV
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -175,6 +298,7 @@ export default function DetectionPage() {
               before={{ collection, id: before.id }}
               after={{ collection, id: after.id }}
               detections={detections}
+              captureRef={capture}
               className="absolute inset-0"
             />
           ) : (
@@ -182,11 +306,14 @@ export default function DetectionPage() {
               rasterItem={after ? { collection, id: after.id } : null}
               detections={detections}
               opacity={0.9}
+              captureRef={capture}
               className="absolute inset-0"
             />
           )}
         </div>
       </div>
+
+      {report && <ReportDoc model={report} />}
     </div>
   );
 }
@@ -204,6 +331,17 @@ function Row({ k, v }: { k: string; v: React.ReactNode }) {
     <div className="flex justify-between text-xs">
       <span style={{ color: "var(--muted)" }}>{k}</span>
       <span className="telemetry">{v}</span>
+    </div>
+  );
+}
+function ChosenRow({ k, i, target }: { k: string; i?: StacItem; target: string }) {
+  const c = i ? cloud(i) : null;
+  return (
+    <div className="flex items-center justify-between text-[11px]">
+      <span style={{ color: "var(--muted)" }}>{k}</span>
+      <span className="telemetry" style={{ color: i ? "var(--text)" : "var(--warn)" }}>
+        {i ? `${date(i)}${c != null ? ` · ${c.toFixed(0)}%` : ""}` : target ? "no match" : "—"}
+      </span>
     </div>
   );
 }

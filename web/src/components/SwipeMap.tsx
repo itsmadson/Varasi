@@ -55,11 +55,14 @@ export function SwipeMap({
   after,
   detections,
   className,
+  captureRef,
 }: {
   before: Item;
   after: Item;
   detections?: GeoJSONFC;
   className?: string;
+  // Snapshot of the "after" map (with change overlay) for reports.
+  captureRef?: React.MutableRefObject<(() => string | null) | null>;
 }) {
   const beforeRef = useRef<HTMLDivElement>(null);
   const afterRef = useRef<HTMLDivElement>(null);
@@ -79,7 +82,7 @@ export function SwipeMap({
 
   useEffect(() => {
     if (!beforeRef.current || !afterRef.current || mA.current) return;
-    const common = { center: [51.41, 35.72] as [number, number], zoom: 10, attributionControl: false as const, transformRequest };
+    const common = { center: [51.41, 35.72] as [number, number], zoom: 10, attributionControl: false as const, preserveDrawingBuffer: true, transformRequest };
 
     const afterMap = new maplibregl.Map({ container: afterRef.current, style: baseStyle(), ...common });
     const beforeMap = new maplibregl.Map({ container: beforeRef.current, style: baseStyle(), ...common });
@@ -120,6 +123,17 @@ export function SwipeMap({
 
     mA.current = afterMap;
     mB.current = beforeMap;
+
+    if (captureRef) {
+      captureRef.current = () => {
+        try {
+          afterMap.redraw();
+          return afterMap.getCanvas().toDataURL("image/png");
+        } catch {
+          return null;
+        }
+      };
+    }
 
     const ro = new ResizeObserver(() => {
       afterMap.resize();

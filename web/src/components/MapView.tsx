@@ -50,6 +50,7 @@ export function MapView({
   opacity = 1,
   basemap = "dark",
   className,
+  captureRef,
 }: {
   footprints?: GeoJSONFC;
   rasterItem?: { collection: string; id: string } | null;
@@ -57,6 +58,8 @@ export function MapView({
   opacity?: number;
   basemap?: Basemap;
   className?: string;
+  // Set by the parent to grab a PNG snapshot of the current map for reports.
+  captureRef?: React.MutableRefObject<(() => string | null) | null>;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
@@ -70,6 +73,7 @@ export function MapView({
       style: styleFor(basemap),
       center: [51.4, 35.7],
       zoom: 8,
+      preserveDrawingBuffer: true, // required for getCanvas().toDataURL()
       attributionControl: { compact: true },
       // Attach the JWT to same-origin catalog tile/data requests.
       transformRequest: (url) => {
@@ -87,6 +91,16 @@ export function MapView({
       syncRaster(m, rasterItem, opacity);
       syncDetections(m, detections);
     });
+    if (captureRef) {
+      captureRef.current = () => {
+        try {
+          m.redraw();
+          return m.getCanvas().toDataURL("image/png");
+        } catch {
+          return null;
+        }
+      };
+    }
     map.current = m;
     return () => {
       m.remove();

@@ -59,6 +59,7 @@ func (s *Server) Router() http.Handler {
 		r.With(requireRole("editor")).Post("/watch-areas/{id}/evaluate", s.evaluateWatchAreaHandler)
 
 		r.Get("/alerts", s.listAlerts)
+		r.Get("/alerts/{id}", s.alertDetail)
 		r.With(requireRole("editor")).Post("/alerts/{id}/ack", s.ackAlert)
 
 		r.Get("/jobs", s.listJobs)
