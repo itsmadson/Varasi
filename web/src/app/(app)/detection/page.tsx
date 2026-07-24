@@ -4,7 +4,6 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useMemo, useRef, useState } from "react";
 import { MapView } from "@/components/MapView";
 import { SwipeMap } from "@/components/SwipeMap";
-import { DrawMap } from "@/components/DrawMap";
 import { ReportDoc, type ReportModel } from "@/components/ReportDoc";
 import { PageHeader } from "@/components/ui";
 import { api, type DetectResult, type StacItem } from "@/lib/api";
@@ -23,6 +22,12 @@ const CLASS_COLOR: Record<string, string> = {
   unknown: "#a8ae79",
 };
 
+function bboxIntersection(a: number[], b: number[]): number[] {
+  return [Math.max(a[0], b[0]), Math.max(a[1], b[1]), Math.min(a[2], b[2]), Math.min(a[3], b[3])];
+}
+function bboxPolygon(bb: number[]) {
+  return { type: "Polygon", coordinates: [[[bb[0], bb[1]], [bb[2], bb[1]], [bb[2], bb[3]], [bb[0], bb[3]], [bb[0], bb[1]]]] };
+}
 function date(i: StacItem) {
   return String(i.properties.datetime ?? "").slice(0, 10);
 }
@@ -30,21 +35,14 @@ function cloud(i: StacItem): number | null {
   const c = i.properties["eo:cloud_cover"];
   return typeof c === "number" ? c : null;
 }
-// Short source tag from the STAC collection (metadata detail, not a workflow gate).
+// Short source tag from the raster's collection — metadata only, not a filter.
 function source(i: StacItem) {
   return String(i.collection ?? "").replace(/^sentinel-2-?/, "S2·").slice(0, 12) || "raster";
 }
 
 export default function DetectionPage() {
   const { t } = useI18n();
-
-  // Area of interest drives everything — rasters are found by geometry, not by collection.
-  const [aoi, setAoi] = useState<GeoJSON.Polygon | GeoJSON.MultiPolygon | null>(null);
-  const [aoiSource, setAoiSource] = useState<"draw" | "watch">("draw");
-  const [editingArea, setEditingArea] = useState(true);
-  const [drawGeom, setDrawGeom] = useState<GeoJSON.Polygon | null>(null);
-
-  const [mode, setMode] = useState<"scene" | "date">("date");
+  const [mode, setMode] = useState<"scene" | "date">("scene");
   const [beforeId, setBeforeId] = useState("");
   const [afterId, setAfterId] = useState("");
   const [beforeDate, setBeforeDate] = useState("");
@@ -57,14 +55,8 @@ export default function DetectionPage() {
 
   const capture = useRef<(() => string | null) | null>(null);
 
-  const watch = useQuery({ queryKey: ["watch-areas"], queryFn: api.watchAreas });
-
-  // Rasters intersecting the AOI, across ALL collections.
-  const scenes = useQuery({
-    queryKey: ["aoi-scenes", aoi],
-    queryFn: () => api.search({ intersects: aoi, limit: 60 }),
-    enabled: !!aoi,
-  });
+  // All rasters in the catalog — no collection gate.
+  const scenes = useQuery({ queryKey: ["scenes-all-det"], queryFn: () => api.search({ limit: 60 }) });
   const items = scenes.data?.features ?? [];
   const cloudy = useMemo(
     () => items.filter((i) => cloud(i) == null || (cloud(i) as number) <= maxCloud),
@@ -84,7 +76,7 @@ export default function DetectionPage() {
   const run = useMutation({
     mutationFn: () => {
       if (!before || !after) throw new Error("pick two rasters");
-      if (!aoi) throw new Error("define an area");
+      const aoi = bboxPolygon(bboxIntersection(before.bbox, after.bbox));
       return api.runDetection({
         before: { collection: before.collection, item_id: before.id, datetime: date(before) },
         after: { collection: after.collection, item_id: after.id, datetime: date(after) },
@@ -102,43 +94,16 @@ export default function DetectionPage() {
     [result],
   );
 
-  const aoiFC: GeoJSONFC | undefined = useMemo(
-    () => (aoi ? { type: "FeatureCollection", features: [{ type: "Feature", geometry: aoi, properties: {} }] } : undefined),
-    [aoi],
-  );
-
-  const useDrawnArea = () => {
-    if (drawGeom) {
-      setAoi(drawGeom);
-      setEditingArea(false);
-      resetPicks();
-    }
-  };
-  const useWatchArea = (id: string) => {
-    const f = watch.data?.features.find((w) => String(w.id) === id);
-    if (f) {
-      setAoi(f.geometry as GeoJSON.Polygon | GeoJSON.MultiPolygon);
-      setEditingArea(false);
-      resetPicks();
-    }
-  };
-  const resetPicks = () => {
-    setBeforeId("");
-    setAfterId("");
-    setResult(null);
-  };
-
   const exportPdf = () => {
     const fc = detections ?? { type: "FeatureCollection", features: [] };
     setReport({
       kind: "Change Detection",
       title: before && after ? `${date(before)} → ${date(after)}` : "Change detection",
-      subtitle: aoiSource === "watch" ? "Watch-area probe" : "Ad-hoc area probe",
       dateRange: `Algorithm ${algorithm} · threshold ${threshold.toFixed(2)}`,
       meta: [
         { label: "Before raster", value: before ? `${date(before)} · ${source(before)}` : "—" },
         { label: "After raster", value: after ? `${date(after)} · ${source(after)}` : "—" },
-        { label: "Rasters in area", value: String(items.length) },
+        { label: "Rasters in catalog", value: String(items.length) },
       ],
       mapImage: capture.current?.() ?? null,
       stats: result
@@ -158,148 +123,92 @@ export default function DetectionPage() {
   return (
     <div className="flex h-full flex-col">
       <div className="px-6 pb-4 pt-6">
-        <PageHeader title={t("nav.detection")} subtitle="Draw an area — we compare the rasters we have there." />
+        <PageHeader title={t("nav.detection")} subtitle="Pick two rasters — or two dates — and detect change." />
       </div>
 
       <div className="grid min-h-0 flex-1 grid-cols-1 border-t lg:grid-cols-[340px_1fr]">
         <div className="min-h-0 space-y-4 overflow-auto border-e p-5">
-          {/* Area of interest */}
-          <div className="panel space-y-2.5 p-3">
-            <div className="label">Area of interest</div>
+          <div className="telemetry text-[10px]" style={{ color: "var(--muted)" }}>
+            {scenes.isLoading ? "loading rasters…" : `${items.length} rasters in catalog`}
+          </div>
+
+          <Field label="Pick by">
             <div className="flex gap-1">
-              {(["draw", "watch"] as const).map((s) => (
+              {(["scene", "date"] as const).map((mo) => (
                 <button
-                  key={s}
-                  onClick={() => {
-                    setAoiSource(s);
-                    setEditingArea(true);
-                  }}
+                  key={mo}
+                  onClick={() => setMode(mo)}
                   className="chip flex-1 text-center"
                   style={{
-                    color: aoiSource === s ? "var(--bg)" : "var(--muted)",
-                    background: aoiSource === s ? "var(--accent)" : "transparent",
-                    borderColor: aoiSource === s ? "var(--accent)" : "var(--border)",
+                    color: mode === mo ? "var(--bg)" : "var(--muted)",
+                    background: mode === mo ? "var(--accent)" : "transparent",
+                    borderColor: mode === mo ? "var(--accent)" : "var(--border)",
                   }}
                 >
-                  {s === "draw" ? "Draw bbox" : "Watch area"}
+                  {mo === "scene" ? "Raster" : "Date"}
                 </button>
               ))}
             </div>
+          </Field>
 
-            {aoiSource === "watch" ? (
-              <select className="input" defaultValue="" onChange={(e) => useWatchArea(e.target.value)}>
-                <option value="">select a watch area…</option>
-                {watch.data?.features.map((f) => (
-                  <option key={String(f.id)} value={String(f.id)}>
-                    {String((f.properties as Record<string, unknown>)?.name ?? f.id)}
-                  </option>
-                ))}
-              </select>
-            ) : editingArea ? (
-              <button className="btn w-full" disabled={!drawGeom} onClick={useDrawnArea}>
-                {drawGeom ? "Use this area" : "Draw a box on the map →"}
-              </button>
-            ) : (
-              <button className="btn-ghost w-full text-xs" onClick={() => setEditingArea(true)}>
-                ✎ edit area
-              </button>
-            )}
-
-            {aoi && !editingArea && (
-              <div className="telemetry text-[10px]" style={{ color: scenes.isLoading ? "var(--warn)" : "var(--accent)" }}>
-                {scenes.isLoading ? "searching rasters…" : `${items.length} rasters found in area`}
-              </div>
-            )}
-          </div>
-
-          {/* Only show pickers once an area is locked and rasters exist */}
-          {aoi && !editingArea && items.length > 0 && (
+          {mode === "scene" ? (
             <>
-              <Field label="Pick by">
-                <div className="flex gap-1">
-                  {(["date", "scene"] as const).map((mo) => (
-                    <button
-                      key={mo}
-                      onClick={() => setMode(mo)}
-                      className="chip flex-1 text-center"
-                      style={{
-                        color: mode === mo ? "var(--bg)" : "var(--muted)",
-                        background: mode === mo ? "var(--accent)" : "transparent",
-                        borderColor: mode === mo ? "var(--accent)" : "var(--border)",
-                      }}
-                    >
-                      {mo === "date" ? "Date" : "Raster"}
-                    </button>
-                  ))}
-                </div>
+              <Field label="Before raster">
+                <SceneSelect items={items} value={beforeId} onChange={setBeforeId} />
               </Field>
-
-              {mode === "scene" ? (
-                <>
-                  <Field label="Before raster">
-                    <SceneSelect items={items} value={beforeId} onChange={setBeforeId} />
-                  </Field>
-                  <Field label="After raster">
-                    <SceneSelect items={items} value={afterId} onChange={setAfterId} />
-                  </Field>
-                </>
-              ) : (
-                <>
-                  <Field label="Before date">
-                    <input type="date" className="input" value={beforeDate} onChange={(e) => setBeforeDate(e.target.value)} />
-                  </Field>
-                  <Field label="After date">
-                    <input type="date" className="input" value={afterDate} onChange={(e) => setAfterDate(e.target.value)} />
-                  </Field>
-                  <Field label={`Max cloud · ${maxCloud}%`}>
-                    <input type="range" min={0} max={100} step={5} value={maxCloud} onChange={(e) => setMaxCloud(Number(e.target.value))} className="w-full accent-[var(--accent)]" />
-                  </Field>
-                  <div className="panel space-y-1 p-3">
-                    <div className="label">Chosen rasters</div>
-                    <ChosenRow k="Before" i={before} target={beforeDate} />
-                    <ChosenRow k="After" i={after} target={afterDate} />
-                  </div>
-                </>
-              )}
-
-              <Field label="Algorithm">
-                <div className="flex gap-1">
-                  {ALGORITHMS.map((a) => (
-                    <button
-                      key={a}
-                      onClick={() => setAlgorithm(a)}
-                      className="chip flex-1 text-center"
-                      style={{
-                        color: algorithm === a ? "var(--bg)" : "var(--muted)",
-                        background: algorithm === a ? "var(--accent)" : "transparent",
-                        borderColor: algorithm === a ? "var(--accent)" : "var(--border)",
-                      }}
-                    >
-                      {a}
-                    </button>
-                  ))}
-                </div>
+              <Field label="After raster">
+                <SceneSelect items={items} value={afterId} onChange={setAfterId} />
               </Field>
-
-              <Field label={`Threshold · ${threshold.toFixed(2)}`}>
-                <input type="range" min={0.2} max={0.9} step={0.05} value={threshold} onChange={(e) => setThreshold(Number(e.target.value))} className="w-full accent-[var(--accent)]" />
+            </>
+          ) : (
+            <>
+              <Field label="Before date">
+                <input type="date" className="input" value={beforeDate} onChange={(e) => setBeforeDate(e.target.value)} />
               </Field>
-
-              <button className="btn w-full" disabled={!before || !after || run.isPending} onClick={() => run.mutate()}>
-                {run.isPending ? "Detecting…" : "Run change detection"}
-              </button>
-              {run.isError && (
-                <p className="text-xs" style={{ color: "var(--danger)" }}>
-                  {(run.error as Error).message}
-                </p>
-              )}
+              <Field label="After date">
+                <input type="date" className="input" value={afterDate} onChange={(e) => setAfterDate(e.target.value)} />
+              </Field>
+              <Field label={`Max cloud · ${maxCloud}%`}>
+                <input type="range" min={0} max={100} step={5} value={maxCloud} onChange={(e) => setMaxCloud(Number(e.target.value))} className="w-full accent-[var(--accent)]" />
+              </Field>
+              <div className="panel space-y-1 p-3">
+                <div className="label">Chosen rasters</div>
+                <ChosenRow k="Before" i={before} target={beforeDate} />
+                <ChosenRow k="After" i={after} target={afterDate} />
+              </div>
             </>
           )}
 
-          {aoi && !editingArea && !scenes.isLoading && items.length === 0 && (
-            <div className="telemetry text-xs" style={{ color: "var(--warn)" }}>
-              No rasters intersect this area. Ingest imagery or draw elsewhere.
+          <Field label="Algorithm">
+            <div className="flex gap-1">
+              {ALGORITHMS.map((a) => (
+                <button
+                  key={a}
+                  onClick={() => setAlgorithm(a)}
+                  className="chip flex-1 text-center"
+                  style={{
+                    color: algorithm === a ? "var(--bg)" : "var(--muted)",
+                    background: algorithm === a ? "var(--accent)" : "transparent",
+                    borderColor: algorithm === a ? "var(--accent)" : "var(--border)",
+                  }}
+                >
+                  {a}
+                </button>
+              ))}
             </div>
+          </Field>
+
+          <Field label={`Threshold · ${threshold.toFixed(2)}`}>
+            <input type="range" min={0.2} max={0.9} step={0.05} value={threshold} onChange={(e) => setThreshold(Number(e.target.value))} className="w-full accent-[var(--accent)]" />
+          </Field>
+
+          <button className="btn w-full" disabled={!before || !after || run.isPending} onClick={() => run.mutate()}>
+            {run.isPending ? "Detecting…" : "Run change detection"}
+          </button>
+          {run.isError && (
+            <p className="text-xs" style={{ color: "var(--danger)" }}>
+              {(run.error as Error).message}
+            </p>
           )}
 
           {result && (
@@ -331,9 +240,7 @@ export default function DetectionPage() {
         </div>
 
         <div className="relative min-h-0">
-          {editingArea && aoiSource === "draw" ? (
-            <DrawMap onGeometry={setDrawGeom} className="absolute inset-0" />
-          ) : before && after ? (
+          {before && after ? (
             <SwipeMap
               before={{ collection: before.collection, id: before.id }}
               after={{ collection: after.collection, id: after.id }}
@@ -343,7 +250,6 @@ export default function DetectionPage() {
             />
           ) : (
             <MapView
-              footprints={aoiFC}
               rasterItem={after ? { collection: after.collection, id: after.id } : null}
               detections={detections}
               opacity={0.9}
@@ -392,7 +298,7 @@ function SceneSelect({ items, value, onChange }: { items: StacItem[]; value: str
       <option value="">—</option>
       {items.map((i) => (
         <option key={i.id} value={i.id}>
-          {date(i)} · {source(i)}
+          {date(i)} · {source(i)} · {i.id.slice(0, 10)}
         </option>
       ))}
     </select>
