@@ -9,6 +9,7 @@ import { DrawMap } from "@/components/DrawMap";
 import { PageHeader, Spinner } from "@/components/ui";
 import { api, type EvalResult } from "@/lib/api";
 import { useI18n } from "@/i18n/LocaleProvider";
+import type { MsgKey } from "@/i18n/dict";
 
 const PRIORITY_COLOR = ["", "var(--danger)", "var(--warn)", "var(--accent)", "var(--muted)", "var(--muted)"];
 const ALERT_CLASSES = ["urban_growth", "vegetation_loss", "vegetation_gain", "water_change", "bare_soil"] as const;
@@ -119,7 +120,7 @@ export default function WatchAreasPage() {
                       </button>
                       <button
                         className="btn-ghost !px-1.5"
-                        title="Open"
+                        title={t("common.open")}
                         onClick={(e) => {
                           e.stopPropagation();
                           router.push(`/watch-areas/${id}`);
@@ -209,15 +210,15 @@ export default function WatchAreasPage() {
             </div>
 
             <div>
-              <label className="label mb-1 block">Cadence</label>
+              <label className="label mb-1 block">{t("wa.cadence")}</label>
               <select className="input" value={cadence} onChange={(e) => setCadence(e.target.value)}>
-                <option value="on-ingest">on ingest</option>
-                <option value="daily">daily</option>
-                <option value="weekly">weekly</option>
+                <option value="on-ingest">{t("wa.cadOnIngest")}</option>
+                <option value="daily">{t("wa.cadDaily")}</option>
+                <option value="weekly">{t("wa.cadWeekly")}</option>
               </select>
             </div>
             <div className="sm:col-span-2">
-              <label className="label mb-1 block">Max cloud · {maxCloud}%</label>
+              <label className="label mb-1 block">{t("wa.maxCloud")} · {maxCloud}%</label>
               <input
                 type="range"
                 min={0}
@@ -230,7 +231,7 @@ export default function WatchAreasPage() {
             </div>
 
             <div className="sm:col-span-3">
-              <label className="label mb-1.5 block">Alert only on classes (empty = any)</label>
+              <label className="label mb-1.5 block">{t("wa.alertClasses")}</label>
               <div className="flex flex-wrap gap-1.5">
                 {ALERT_CLASSES.map((c) => {
                   const on = alertClasses.includes(c);
@@ -246,7 +247,7 @@ export default function WatchAreasPage() {
                         borderColor: on ? "var(--accent)" : "var(--border)",
                       }}
                     >
-                      {c.replace("_", " ")}
+                      {t(`class.${c}` as MsgKey)}
                     </button>
                   );
                 })}

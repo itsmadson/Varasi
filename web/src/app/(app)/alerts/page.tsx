@@ -6,6 +6,8 @@ import { useState } from "react";
 import { PageHeader, Spinner } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useI18n } from "@/i18n/LocaleProvider";
+import type { MsgKey } from "@/i18n/dict";
+import { km2 } from "@/lib/report";
 
 const SEV_COLOR: Record<string, string> = {
   critical: "#c46a5a",
@@ -80,21 +82,28 @@ export default function AlertsPage() {
               />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-600">{a.title}</span>
+                  <span className="text-sm font-600">{t("alert.titleTpl", { name: a.watch_area ?? "" })}</span>
                   <span
                     className="chip !py-0"
                     style={{ color: SEV_COLOR[a.severity], borderColor: SEV_COLOR[a.severity] }}
                   >
-                    {a.severity}
+                    {t(`sev.${a.severity}` as MsgKey)}
                   </span>
                   {a.score != null && a.score > 0 && (
                     <span className="telemetry text-[9px]" style={{ color: "var(--muted)" }}>
-                      score {a.score.toFixed(0)}
+                      {t("metric.score")} {a.score.toFixed(0)}
                     </span>
                   )}
                 </div>
                 <p className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
-                  {a.body}
+                  {a.metrics?.polygon_count
+                    ? t("alert.bodyTpl", {
+                        regions: a.metrics.polygon_count ?? 0,
+                        area: km2(a.metrics.area_m2 ?? 0),
+                        before: a.metrics.before_date ?? "—",
+                        after: a.metrics.after_date ?? "—",
+                      })
+                    : a.body}
                 </p>
                 <div className="telemetry mt-1.5 text-[9px]" style={{ color: "var(--muted)" }}>
                   {a.watch_area ?? "—"} · {a.created_at?.slice(0, 19).replace("T", " ")}

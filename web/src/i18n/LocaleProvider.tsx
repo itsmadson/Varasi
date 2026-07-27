@@ -6,7 +6,7 @@ import { DIR, dict, type Locale, type MsgKey } from "./dict";
 type Ctx = {
   locale: Locale;
   dir: "ltr" | "rtl";
-  t: (key: MsgKey) => string;
+  t: (key: MsgKey, params?: Record<string, string | number>) => string;
   setLocale: (l: Locale) => void;
   toggleLocale: () => void;
 };
@@ -36,7 +36,14 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
     [locale, setLocale],
   );
 
-  const t = useCallback((key: MsgKey) => dict[locale][key] ?? key, [locale]);
+  const t = useCallback(
+    (key: MsgKey, params?: Record<string, string | number>) => {
+      let s: string = dict[locale][key] ?? key;
+      if (params) for (const [k, v] of Object.entries(params)) s = s.replaceAll(`{${k}}`, String(v));
+      return s;
+    },
+    [locale],
+  );
 
   return (
     <LocaleContext.Provider value={{ locale, dir: DIR[locale], t, setLocale, toggleLocale }}>

@@ -119,7 +119,7 @@ export default function DashboardPage() {
 
           {hottest.length > 0 && (
             <>
-              <div className="label mb-1 mt-3">Hottest areas</div>
+              <div className="label mb-1 mt-3">{t("dash.hottest")}</div>
               <div className="space-y-1">
                 {hottest.map((a) => (
                   <button

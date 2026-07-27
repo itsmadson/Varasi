@@ -135,11 +135,19 @@ export type Alert = {
   watch_area?: string | null;
   watch_area_id?: string | null;
   score?: number;
+  metrics?: AlertMetrics;
+};
+export type AlertMetrics = {
+  polygon_count?: number | null;
+  area_m2?: number | null;
+  before_date?: string | null;
+  after_date?: string | null;
 };
 export type AlertDetail = {
   alert: Alert;
   watch_area_geom?: GeoJSON.Geometry | null;
   scenes: { collection?: string | null; before?: string | null; after?: string | null };
+  dates: { before?: string | null; after?: string | null };
   detections: GeoJSONFC;
   stats: { changed_area_m2: number; polygon_count: number; class_breakdown: Record<string, number> };
 };

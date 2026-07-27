@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { PageHeader, Spinner, Stat } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useI18n } from "@/i18n/LocaleProvider";
+import type { MsgKey } from "@/i18n/dict";
 
 const CLASS_COLOR: Record<string, string> = {
   urban_growth: "#c46a5a",
@@ -18,6 +19,7 @@ const km2 = (m2: number) => (m2 / 1e6).toFixed(2);
 
 export default function AnalyticsPage() {
   const { t } = useI18n();
+  const clsLabel = (c: string) => t(`class.${c}` as MsgKey);
   const a = useQuery({ queryKey: ["analytics"], queryFn: api.analytics });
 
   if (a.isLoading) return <Spinner label={t("common.loading")} />;
@@ -29,11 +31,11 @@ export default function AnalyticsPage() {
 
   return (
     <div className="space-y-6 px-6 py-6">
-      <PageHeader title={t("nav.analytics")} subtitle="Detected change across your organization." />
+      <PageHeader title={t("nav.analytics")} subtitle={t("analytics.subtitle")} />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Detections" value={d.totals.detections} />
-        <Stat label="Changed area" value={`${km2(d.totals.changed_area_m2)} km²`} />
+        <Stat label={t("metric.detections")} value={d.totals.detections} />
+        <Stat label={t("metric.changedArea")} value={`${km2(d.totals.changed_area_m2)} km²`} />
         <Stat label={t("stat.watchAreas")} value={d.totals.watch_areas} />
         <Stat label={t("stat.alerts")} value={d.totals.open_alerts} />
       </div>
@@ -41,11 +43,11 @@ export default function AnalyticsPage() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Change-class breakdown */}
         <div className="panel p-5">
-          <div className="label mb-4">Change by class</div>
+          <div className="label mb-4">{t("analytics.byClass")}</div>
           <div className="space-y-3">
             {d.by_class.length === 0 && (
               <div className="telemetry text-xs" style={{ color: "var(--muted)" }}>
-                No detections yet. Run change detection to populate.
+                {t("analytics.noDet")}
               </div>
             )}
             {d.by_class.map((c) => (
@@ -53,7 +55,7 @@ export default function AnalyticsPage() {
                 <div className="mb-1 flex items-center justify-between text-xs">
                   <span className="flex items-center gap-2">
                     <span className="h-2.5 w-2.5 rounded-full" style={{ background: CLASS_COLOR[c.class] ?? "var(--accent)" }} />
-                    {c.class.replace("_", " ")}
+                    {clsLabel(c.class)}
                   </span>
                   <span className="telemetry" style={{ color: "var(--muted)" }}>
                     {km2(c.area_m2)} km² · {c.count}
@@ -72,10 +74,10 @@ export default function AnalyticsPage() {
 
         {/* Monthly changed-area time series */}
         <div className="panel p-5">
-          <div className="label mb-4">Changed area over time</div>
+          <div className="label mb-4">{t("analytics.overTime")}</div>
           {d.series.length === 0 ? (
             <div className="telemetry text-xs" style={{ color: "var(--muted)" }}>
-              No time series yet.
+              {t("analytics.noSeries")}
             </div>
           ) : (
             <div className="flex h-48 items-end gap-2">

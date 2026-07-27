@@ -8,6 +8,7 @@ import { ReportDoc, type ReportModel } from "@/components/ReportDoc";
 import { PageHeader } from "@/components/ui";
 import { api, type DetectResult, type StacItem } from "@/lib/api";
 import { useI18n } from "@/i18n/LocaleProvider";
+import type { MsgKey } from "@/i18n/dict";
 import { classBreakdown, downloadCSV, downloadGeoJSON, km2, nearestScene, printReport } from "@/lib/report";
 import type { GeoJSONFC } from "@/lib/api";
 
@@ -42,6 +43,7 @@ function source(i: StacItem) {
 
 export default function DetectionPage() {
   const { t } = useI18n();
+  const clsLabel = (c: string) => t(`class.${c}` as MsgKey);
   const [mode, setMode] = useState<"scene" | "date">("scene");
   const [beforeId, setBeforeId] = useState("");
   const [afterId, setAfterId] = useState("");
@@ -75,7 +77,7 @@ export default function DetectionPage() {
 
   const run = useMutation({
     mutationFn: () => {
-      if (!before || !after) throw new Error("pick two rasters");
+      if (!before || !after) throw new Error(t("detect.pickTwo"));
       const aoi = bboxPolygon(bboxIntersection(before.bbox, after.bbox));
       return api.runDetection({
         before: { collection: before.collection, item_id: before.id, datetime: date(before) },
@@ -123,16 +125,16 @@ export default function DetectionPage() {
   return (
     <div className="flex h-full flex-col">
       <div className="px-6 pb-4 pt-6">
-        <PageHeader title={t("nav.detection")} subtitle="Pick two rasters — or two dates — and detect change." />
+        <PageHeader title={t("nav.detection")} subtitle={t("detect.subtitle")} />
       </div>
 
       <div className="grid min-h-0 flex-1 grid-cols-1 border-t lg:grid-cols-[340px_1fr]">
         <div className="min-h-0 space-y-4 overflow-auto border-e p-5">
           <div className="telemetry text-[10px]" style={{ color: "var(--muted)" }}>
-            {scenes.isLoading ? "loading rasters…" : `${items.length} rasters in catalog`}
+            {scenes.isLoading ? t("detect.loadingRasters") : t("detect.rastersCount", { n: items.length })}
           </div>
 
-          <Field label="Pick by">
+          <Field label={t("detect.pickBy")}>
             <div className="flex gap-1">
               {(["scene", "date"] as const).map((mo) => (
                 <button
@@ -145,7 +147,7 @@ export default function DetectionPage() {
                     borderColor: mode === mo ? "var(--accent)" : "var(--border)",
                   }}
                 >
-                  {mo === "scene" ? "Raster" : "Date"}
+                  {mo === "scene" ? t("detect.byRaster") : t("detect.byDate")}
                 </button>
               ))}
             </div>
@@ -153,33 +155,33 @@ export default function DetectionPage() {
 
           {mode === "scene" ? (
             <>
-              <Field label="Before raster">
+              <Field label={t("detect.beforeRaster")}>
                 <SceneSelect items={items} value={beforeId} onChange={setBeforeId} />
               </Field>
-              <Field label="After raster">
+              <Field label={t("detect.afterRaster")}>
                 <SceneSelect items={items} value={afterId} onChange={setAfterId} />
               </Field>
             </>
           ) : (
             <>
-              <Field label="Before date">
+              <Field label={t("detect.beforeDate")}>
                 <input type="date" className="input" value={beforeDate} onChange={(e) => setBeforeDate(e.target.value)} />
               </Field>
-              <Field label="After date">
+              <Field label={t("detect.afterDate")}>
                 <input type="date" className="input" value={afterDate} onChange={(e) => setAfterDate(e.target.value)} />
               </Field>
-              <Field label={`Max cloud · ${maxCloud}%`}>
+              <Field label={`${t("wa.maxCloud")} · ${maxCloud}%`}>
                 <input type="range" min={0} max={100} step={5} value={maxCloud} onChange={(e) => setMaxCloud(Number(e.target.value))} className="w-full accent-[var(--accent)]" />
               </Field>
               <div className="panel space-y-1 p-3">
-                <div className="label">Chosen rasters</div>
-                <ChosenRow k="Before" i={before} target={beforeDate} />
-                <ChosenRow k="After" i={after} target={afterDate} />
+                <div className="label">{t("detect.chosen")}</div>
+                <ChosenRow k={t("common.before")} i={before} target={beforeDate} noMatch={t("detect.noMatch")} />
+                <ChosenRow k={t("common.after")} i={after} target={afterDate} noMatch={t("detect.noMatch")} />
               </div>
             </>
           )}
 
-          <Field label="Algorithm">
+          <Field label={t("detect.algorithm")}>
             <div className="flex gap-1">
               {ALGORITHMS.map((a) => (
                 <button
@@ -198,12 +200,12 @@ export default function DetectionPage() {
             </div>
           </Field>
 
-          <Field label={`Threshold · ${threshold.toFixed(2)}`}>
+          <Field label={`${t("detect.threshold")} · ${threshold.toFixed(2)}`}>
             <input type="range" min={0.2} max={0.9} step={0.05} value={threshold} onChange={(e) => setThreshold(Number(e.target.value))} className="w-full accent-[var(--accent)]" />
           </Field>
 
           <button className="btn w-full" disabled={!before || !after || run.isPending} onClick={() => run.mutate()}>
-            {run.isPending ? "Detecting…" : "Run change detection"}
+            {run.isPending ? t("detect.running") : t("detect.run")}
           </button>
           {run.isError && (
             <p className="text-xs" style={{ color: "var(--danger)" }}>
@@ -213,23 +215,23 @@ export default function DetectionPage() {
 
           {result && (
             <div className="panel space-y-2 p-3">
-              <div className="label">Result</div>
-              <Row k="Polygons" v={result.stats.polygon_count} />
-              <Row k="Changed area" v={`${km2(result.stats.changed_area_m2)} km²`} />
-              <Row k="Changed" v={`${(result.stats.changed_fraction * 100).toFixed(1)}%`} />
-              <div className="label mt-2">By class</div>
+              <div className="label">{t("detect.result")}</div>
+              <Row k={t("metric.polygons")} v={result.stats.polygon_count} />
+              <Row k={t("metric.changedArea")} v={`${km2(result.stats.changed_area_m2)} km²`} />
+              <Row k={t("metric.changed")} v={`${(result.stats.changed_fraction * 100).toFixed(1)}%`} />
+              <div className="label mt-2">{t("detect.byClass")}</div>
               {Object.entries(result.stats.class_breakdown)
                 .sort((a, b) => b[1] - a[1])
                 .map(([k, v]) => (
                   <div key={k} className="flex items-center gap-2 text-xs">
                     <span className="h-2.5 w-2.5 rounded-full" style={{ background: CLASS_COLOR[k] ?? "var(--accent)" }} />
                     <span className="flex-1" style={{ color: "var(--muted)" }}>
-                      {k.replace("_", " ")}
+                      {clsLabel(k)}
                     </span>
                     <span className="telemetry">{km2(v)} km²</span>
                   </div>
                 ))}
-              <div className="label mt-3">Export</div>
+              <div className="label mt-3">{t("common.export")}</div>
               <div className="grid grid-cols-3 gap-1.5">
                 <button className="chip" onClick={exportPdf}>PDF</button>
                 <button className="chip" onClick={() => downloadGeoJSON(detections!, "varasi-detection")}>GeoJSON</button>
@@ -281,13 +283,13 @@ function Row({ k, v }: { k: string; v: React.ReactNode }) {
     </div>
   );
 }
-function ChosenRow({ k, i, target }: { k: string; i?: StacItem; target: string }) {
+function ChosenRow({ k, i, target, noMatch }: { k: string; i?: StacItem; target: string; noMatch: string }) {
   const c = i ? cloud(i) : null;
   return (
     <div className="flex items-center justify-between text-[11px]">
       <span style={{ color: "var(--muted)" }}>{k}</span>
       <span className="telemetry" style={{ color: i ? "var(--text)" : "var(--warn)" }}>
-        {i ? `${date(i)} · ${source(i)}${c != null ? ` · ${c.toFixed(0)}%` : ""}` : target ? "no match" : "—"}
+        {i ? `${date(i)} · ${source(i)}${c != null ? ` · ${c.toFixed(0)}%` : ""}` : target ? noMatch : "—"}
       </span>
     </div>
   );

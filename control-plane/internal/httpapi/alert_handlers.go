@@ -30,10 +30,21 @@ func (s *Server) evaluateWatchAreaHandler(w http.ResponseWriter, r *http.Request
 func (s *Server) listAlerts(w http.ResponseWriter, r *http.Request) {
 	c := claimsFrom(r.Context())
 	onlyOpen := r.URL.Query().Get("open") == "true"
+	// Structured run metrics (regions, area, dates) let the client compose a
+	// localized title/body instead of showing the stored English text.
 	q := `SELECT a.id,a.severity,a.title,a.body,a.acknowledged,a.created_at,
-	             w.name, a.watch_area_id, a.score
+	             w.name, a.watch_area_id, a.score,
+	             agg.n, agg.area, agg.bd, agg.ad
 	      FROM varasi.alerts a
 	      LEFT JOIN varasi.watch_areas w ON w.id=a.watch_area_id
+	      LEFT JOIN LATERAL (
+	          SELECT count(*) AS n, COALESCE(SUM(d2.area_m2),0) AS area,
+	                 to_char(min(d2.before_date),'YYYY-MM-DD') AS bd,
+	                 to_char(min(d2.after_date),'YYYY-MM-DD') AS ad
+	          FROM varasi.detections d0
+	          JOIN varasi.detections d2 ON d2.job_id = d0.job_id
+	          WHERE d0.id = a.detection_id
+	      ) agg ON true
 	      WHERE a.org_id=$1`
 	if onlyOpen {
 		q += ` AND a.acknowledged=false`
@@ -54,7 +65,10 @@ func (s *Server) listAlerts(w http.ResponseWriter, r *http.Request) {
 		var ack bool
 		var created any
 		var score float64
-		if err := rows.Scan(&id, &severity, &title, &body, &ack, &created, &waName, &waID, &score); err != nil {
+		var n *int
+		var area *float64
+		var bd, ad *string
+		if err := rows.Scan(&id, &severity, &title, &body, &ack, &created, &waName, &waID, &score, &n, &area, &bd, &ad); err != nil {
 			writeErr(w, http.StatusInternalServerError, "scan")
 			return
 		}
@@ -62,6 +76,7 @@ func (s *Server) listAlerts(w http.ResponseWriter, r *http.Request) {
 			"id": id, "severity": severity, "title": title, "body": body,
 			"acknowledged": ack, "created_at": created,
 			"watch_area": waName, "watch_area_id": waID, "score": score,
+			"metrics": map[string]any{"polygon_count": n, "area_m2": area, "before_date": bd, "after_date": ad},
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"alerts": out})
@@ -173,12 +188,21 @@ func (s *Server) alertDetail(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Acquisition dates of the compared rasters (for a localized title/body).
+	var bd, ad *string
+	if jobID != nil {
+		_ = s.db.Pool.QueryRow(ctx,
+			`SELECT to_char(min(before_date),'YYYY-MM-DD'), to_char(min(after_date),'YYYY-MM-DD')
+			 FROM varasi.detections WHERE job_id=$1 AND org_id=$2`, jobID, c.OrgID).Scan(&bd, &ad)
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
-		"alert":          alert,
+		"alert":           alert,
 		"watch_area_geom": rawOrNil(waGeoJSON),
-		"scenes":         map[string]any{"collection": collection, "before": before, "after": after},
-		"detections":     map[string]any{"type": "FeatureCollection", "features": features},
-		"stats":          map[string]any{"changed_area_m2": totalArea, "polygon_count": len(features), "class_breakdown": byClass},
+		"scenes":          map[string]any{"collection": collection, "before": before, "after": after},
+		"dates":           map[string]any{"before": bd, "after": ad},
+		"detections":      map[string]any{"type": "FeatureCollection", "features": features},
+		"stats":           map[string]any{"changed_area_m2": totalArea, "polygon_count": len(features), "class_breakdown": byClass},
 	})
 }
 
