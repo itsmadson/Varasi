@@ -10,7 +10,7 @@ import { api, type DetectResult, type StacItem } from "@/lib/api";
 import { useI18n } from "@/i18n/LocaleProvider";
 import type { MsgKey } from "@/i18n/dict";
 import { classBreakdown, downloadCSV, downloadGeoJSON, km2, nearestScene, printReport } from "@/lib/report";
-import { CLASS_COLOR } from "@/lib/changeClasses";
+import { ClassStyleControl, useClassStyle } from "@/components/ClassStyleControl";
 import type { GeoJSONFC } from "@/lib/api";
 
 const ALGORITHMS = ["image_diff", "vegetation"] as const;
@@ -45,9 +45,11 @@ export default function DetectionPage() {
   const [algorithm, setAlgorithm] = useState<(typeof ALGORITHMS)[number]>("image_diff");
   const [urban, setUrban] = useState(false);
   const [threshold, setThreshold] = useState(0.5);
+  const [minArea, setMinArea] = useState(40000);
   const [result, setResult] = useState<DetectResult | null>(null);
   const [report, setReport] = useState<ReportModel | null>(null);
 
+  const cs = useClassStyle();
   const capture = useRef<(() => string | null) | null>(null);
 
   // All rasters in the catalog — no collection gate.
@@ -79,7 +81,7 @@ export default function DetectionPage() {
         algorithm,
         classifier: urban ? "urban" : "standard",
         threshold,
-        min_area_m2: 40000,
+        min_area_m2: minArea,
       });
     },
     onSuccess: (r) => setResult(r),
@@ -90,8 +92,24 @@ export default function DetectionPage() {
     [result],
   );
 
+  // Classes actually present in the result (for highlighting the picker).
+  const present = useMemo(() => {
+    const s = new Set<string>();
+    for (const f of result?.features ?? []) s.add(String((f.properties as Record<string, unknown>)?.change_class ?? "unknown"));
+    return s;
+  }, [result]);
+
+  // Only show the classes the user enabled — "choose what to detect".
+  const shown: GeoJSONFC | undefined = useMemo(() => {
+    if (!detections) return undefined;
+    return {
+      type: "FeatureCollection",
+      features: detections.features.filter((f) => cs.enabled.has(String((f.properties as Record<string, unknown>)?.change_class ?? "unknown"))),
+    };
+  }, [detections, cs.enabled]);
+
   const exportPdf = () => {
-    const fc = detections ?? { type: "FeatureCollection", features: [] };
+    const fc = shown ?? { type: "FeatureCollection", features: [] };
     setReport({
       kind: "Change Detection",
       title: before && after ? `${date(before)} → ${date(after)}` : "Change detection",
@@ -198,6 +216,20 @@ export default function DetectionPage() {
             <input type="range" min={0.2} max={0.9} step={0.05} value={threshold} onChange={(e) => setThreshold(Number(e.target.value))} className="w-full accent-[var(--accent)]" />
           </Field>
 
+          {/* Min feature size — drop to a few hundred m² when running on high-res
+              imagery to resolve individual plots/buildings. */}
+          <Field label={`${t("detect.minSize")} · ${minArea < 10000 ? `${minArea} m²` : `${(minArea / 1e6).toFixed(2)} km²`}`}>
+            <input
+              type="range"
+              min={200}
+              max={100000}
+              step={200}
+              value={minArea}
+              onChange={(e) => setMinArea(Number(e.target.value))}
+              className="w-full accent-[var(--accent)]"
+            />
+          </Field>
+
           {/* Urban analysis mode — municipal construction-lifecycle classifier. */}
           <button
             type="button"
@@ -223,6 +255,15 @@ export default function DetectionPage() {
             </span>
           </button>
 
+          <ClassStyleControl
+            style={cs.style}
+            present={present}
+            onColor={cs.setColor}
+            onToggle={cs.toggle}
+            onToggleCategory={cs.toggleCategory}
+            onReset={cs.reset}
+          />
+
           <button className="btn w-full" disabled={!before || !after || run.isPending} onClick={() => run.mutate()}>
             {run.isPending ? t("detect.running") : t("detect.run")}
           </button>
@@ -240,10 +281,11 @@ export default function DetectionPage() {
               <Row k={t("metric.changed")} v={`${(result.stats.changed_fraction * 100).toFixed(1)}%`} />
               <div className="label mt-2">{t("detect.byClass")}</div>
               {Object.entries(result.stats.class_breakdown)
+                .filter(([k]) => cs.enabled.has(k))
                 .sort((a, b) => b[1] - a[1])
                 .map(([k, v]) => (
                   <div key={k} className="flex items-center gap-2 text-xs">
-                    <span className="h-2.5 w-2.5 rounded-full" style={{ background: CLASS_COLOR[k] ?? "var(--accent)" }} />
+                    <span className="h-2.5 w-2.5 rounded-full" style={{ background: cs.colors[k] ?? "var(--accent)" }} />
                     <span className="flex-1" style={{ color: "var(--muted)" }}>
                       {clsLabel(k)}
                     </span>
@@ -272,8 +314,8 @@ export default function DetectionPage() {
               <div className="label mt-3">{t("common.export")}</div>
               <div className="grid grid-cols-3 gap-1.5">
                 <button className="chip" onClick={exportPdf}>PDF</button>
-                <button className="chip" onClick={() => downloadGeoJSON(detections!, "varasi-detection")}>GeoJSON</button>
-                <button className="chip" onClick={() => downloadCSV(detections!, "varasi-detection")}>CSV</button>
+                <button className="chip" onClick={() => downloadGeoJSON(shown!, "varasi-detection")}>GeoJSON</button>
+                <button className="chip" onClick={() => downloadCSV(shown!, "varasi-detection")}>CSV</button>
               </div>
             </div>
           )}
@@ -284,14 +326,16 @@ export default function DetectionPage() {
             <SwipeMap
               before={{ collection: before.collection, id: before.id }}
               after={{ collection: after.collection, id: after.id }}
-              detections={detections}
+              detections={shown}
+              classColors={cs.colors}
               captureRef={capture}
               className="absolute inset-0"
             />
           ) : (
             <MapView
               rasterItem={after ? { collection: after.collection, id: after.id } : null}
-              detections={detections}
+              detections={shown}
+              classColors={cs.colors}
               opacity={0.9}
               captureRef={capture}
               className="absolute inset-0"

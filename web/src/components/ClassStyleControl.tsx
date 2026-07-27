@@ -1,0 +1,139 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { ALL_CLASSES, CATEGORIES, CLASS_COLOR } from "@/lib/changeClasses";
+import { useI18n } from "@/i18n/LocaleProvider";
+import type { MsgKey } from "@/i18n/dict";
+
+export type ClassStyle = Record<string, { color: string; on: boolean }>;
+
+const STORE = "varasi.classStyle.v1";
+
+function initial(): ClassStyle {
+  const s: ClassStyle = {};
+  for (const c of ALL_CLASSES) s[c] = { color: CLASS_COLOR[c] ?? "#a8ae79", on: true };
+  return s;
+}
+
+// useClassStyle holds per-class colour + on/off, persisted to localStorage so a
+// city's chosen palette and filter survive reloads.
+export function useClassStyle() {
+  const [style, setStyle] = useState<ClassStyle>(initial);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORE);
+      if (raw) setStyle({ ...initial(), ...(JSON.parse(raw) as ClassStyle) });
+    } catch {}
+  }, []);
+
+  const persist = useCallback((next: ClassStyle) => {
+    setStyle(next);
+    try {
+      localStorage.setItem(STORE, JSON.stringify(next));
+    } catch {}
+  }, []);
+
+  const setColor = useCallback((cls: string, color: string) => persist({ ...style, [cls]: { ...style[cls], color } }), [style, persist]);
+  const toggle = useCallback((cls: string) => persist({ ...style, [cls]: { ...style[cls], on: !style[cls].on } }), [style, persist]);
+  const toggleCategory = useCallback(
+    (classes: string[], on: boolean) => {
+      const next = { ...style };
+      for (const c of classes) next[c] = { ...next[c], on };
+      persist(next);
+    },
+    [style, persist],
+  );
+  const reset = useCallback(() => persist(initial()), [persist]);
+
+  const colors: Record<string, string> = {};
+  for (const c of ALL_CLASSES) colors[c] = style[c]?.color ?? CLASS_COLOR[c];
+  const enabled = new Set(ALL_CLASSES.filter((c) => style[c]?.on));
+
+  return { style, colors, enabled, setColor, toggle, toggleCategory, reset };
+}
+
+// ClassStyleControl renders the categories, each collapsible, with a per-class
+// checkbox (what to detect) and colour swatch (how to draw it).
+export function ClassStyleControl({
+  style,
+  present,
+  onColor,
+  onToggle,
+  onToggleCategory,
+  onReset,
+}: {
+  style: ClassStyle;
+  present?: Set<string>; // classes actually in the current result (bolded)
+  onColor: (cls: string, color: string) => void;
+  onToggle: (cls: string) => void;
+  onToggleCategory: (classes: string[], on: boolean) => void;
+  onReset: () => void;
+}) {
+  const { t } = useI18n();
+  const [openCat, setOpenCat] = useState<Record<string, boolean>>({ construction: true, vegetation: true });
+
+  return (
+    <div className="panel space-y-1.5 p-3">
+      <div className="flex items-center justify-between">
+        <span className="label">{t("style.title")}</span>
+        <button className="chip" onClick={onReset}>
+          {t("style.reset")}
+        </button>
+      </div>
+
+      {CATEGORIES.map((cat) => {
+        const all = cat.classes.every((c) => style[c]?.on);
+        const some = cat.classes.some((c) => style[c]?.on);
+        const open = openCat[cat.key] ?? false;
+        return (
+          <div key={cat.key} className="rounded-md" style={{ background: "var(--bg)" }}>
+            <div className="flex items-center gap-2 px-2 py-1.5">
+              <input
+                type="checkbox"
+                checked={all}
+                ref={(el) => {
+                  if (el) el.indeterminate = some && !all;
+                }}
+                onChange={() => onToggleCategory(cat.classes, !all)}
+                className="accent-[var(--accent)]"
+              />
+              <button className="flex flex-1 items-center justify-between text-start" onClick={() => setOpenCat((o) => ({ ...o, [cat.key]: !open }))}>
+                <span className="text-xs font-600">{t(`cat.${cat.key}` as MsgKey)}</span>
+                <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" style={{ transform: open ? "rotate(90deg)" : "none", color: "var(--muted)" }} fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M9 6l6 6-6 6" />
+                </svg>
+              </button>
+            </div>
+            {open && (
+              <div className="space-y-1 px-2 pb-2">
+                {cat.classes.map((c) => (
+                  <div key={c} className="flex items-center gap-2">
+                    <input type="checkbox" checked={style[c]?.on ?? false} onChange={() => onToggle(c)} className="accent-[var(--accent)]" />
+                    <input
+                      type="color"
+                      value={style[c]?.color ?? "#a8ae79"}
+                      onChange={(e) => onColor(c, e.target.value)}
+                      className="h-4 w-4 cursor-pointer rounded border-0 bg-transparent p-0"
+                      style={{ appearance: "none" }}
+                      aria-label={`color ${c}`}
+                    />
+                    <span
+                      className="flex-1 text-[11px]"
+                      style={{ color: present?.has(c) ? "var(--text)" : "var(--muted)", fontWeight: present?.has(c) ? 600 : 400 }}
+                    >
+                      {t(`class.${c}` as MsgKey)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+      <div className="telemetry pt-1 text-[9px]" style={{ color: "var(--muted)" }}>
+        {t("style.hint")}
+      </div>
+    </div>
+  );
+}

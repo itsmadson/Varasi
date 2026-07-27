@@ -33,7 +33,6 @@ function styleFor(b: Basemap): maplibregl.StyleSpecification {
   };
 }
 
-const CLASS_COLORS = classMatchExpr();
 
 export function MapView({
   footprints,
@@ -43,6 +42,7 @@ export function MapView({
   basemap = "dark",
   className,
   captureRef,
+  classColors,
 }: {
   footprints?: GeoJSONFC;
   rasterItem?: { collection: string; id: string } | null;
@@ -52,10 +52,13 @@ export function MapView({
   className?: string;
   // Set by the parent to grab a PNG snapshot of the current map for reports.
   captureRef?: React.MutableRefObject<(() => string | null) | null>;
+  // Per-class colour overrides (user style edits); live-applied to the paint.
+  classColors?: Record<string, string>;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const ready = useRef(false);
+  const CLASS_COLORS = classMatchExpr(classColors);
 
   // init
   useEffect(() => {
@@ -81,7 +84,7 @@ export function MapView({
       ready.current = true;
       syncFootprints(m, footprints);
       syncRaster(m, rasterItem, opacity);
-      syncDetections(m, detections);
+      syncDetections(m, detections, CLASS_COLORS);
     });
     if (captureRef) {
       captureRef.current = () => {
@@ -110,7 +113,7 @@ export function MapView({
     m.once("styledata", () => {
       syncFootprints(m, footprints);
       syncRaster(m, rasterItem, opacity);
-      syncDetections(m, detections);
+      syncDetections(m, detections, CLASS_COLORS);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [basemap]);
@@ -127,8 +130,19 @@ export function MapView({
 
   useEffect(() => {
     const m = map.current;
-    if (m && ready.current) syncDetections(m, detections);
+    if (m && ready.current) syncDetections(m, detections, CLASS_COLORS);
   }, [detections]);
+
+  // Live recolour when the user edits class colours.
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !ready.current || !m.getLayer("detections-fill")) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    m.setPaintProperty("detections-fill", "fill-color", CLASS_COLORS as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    m.setPaintProperty("detections-line", "line-color", CLASS_COLORS as any);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [classColors]);
 
   return <div ref={ref} className={className} style={{ width: "100%", height: "100%" }} />;
 }
@@ -185,7 +199,8 @@ function raiseOverlays(m: maplibregl.Map) {
   });
 }
 
-function syncDetections(m: maplibregl.Map, fc?: GeoJSONFC) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function syncDetections(m: maplibregl.Map, fc: GeoJSONFC | undefined, colors: any) {
   const data = (fc ?? { type: "FeatureCollection", features: [] }) as GeoJSON.FeatureCollection;
   const src = m.getSource("detections") as maplibregl.GeoJSONSource | undefined;
   if (src) {
@@ -197,15 +212,13 @@ function syncDetections(m: maplibregl.Map, fc?: GeoJSONFC) {
     id: "detections-fill",
     type: "fill",
     source: "detections",
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    paint: { "fill-color": CLASS_COLORS as any, "fill-opacity": 0.35 },
+    paint: { "fill-color": colors, "fill-opacity": 0.35 },
   });
   m.addLayer({
     id: "detections-line",
     type: "line",
     source: "detections",
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    paint: { "line-color": CLASS_COLORS as any, "line-width": 1.5 },
+    paint: { "line-color": colors, "line-width": 1.5 },
   });
   raiseOverlays(m);
 }

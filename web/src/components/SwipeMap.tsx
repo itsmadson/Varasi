@@ -8,8 +8,6 @@ import { classMatchExpr } from "@/lib/changeClasses";
 
 type Item = { collection: string; id: string };
 
-const CLASS_COLORS = classMatchExpr();
-
 function baseStyle(): maplibregl.StyleSpecification {
   return {
     version: 8,
@@ -48,6 +46,7 @@ export function SwipeMap({
   detections,
   className,
   captureRef,
+  classColors,
 }: {
   before: Item;
   after: Item;
@@ -55,7 +54,9 @@ export function SwipeMap({
   className?: string;
   // Snapshot of the "after" map (with change overlay) for reports.
   captureRef?: React.MutableRefObject<(() => string | null) | null>;
+  classColors?: Record<string, string>;
 }) {
+  const CLASS_COLORS = classMatchExpr(classColors);
   const beforeRef = useRef<HTMLDivElement>(null);
   const afterRef = useRef<HTMLDivElement>(null);
   const topWrap = useRef<HTMLDivElement>(null);
@@ -162,6 +163,17 @@ export function SwipeMap({
       if (b) m.fitBounds(b, { padding: 40, duration: 0 });
     }
   }, [detections]);
+
+  // Live recolour when the user edits class colours.
+  useEffect(() => {
+    const m = mA.current;
+    if (!m || !m.getLayer("det-fill")) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    m.setPaintProperty("det-fill", "fill-color", CLASS_COLORS as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    m.setPaintProperty("det-line", "line-color", CLASS_COLORS as any);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [classColors]);
 
   // Clip the top (before) map to the left of the divider.
   useEffect(() => {
