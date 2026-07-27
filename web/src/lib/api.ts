@@ -97,7 +97,20 @@ export type DetectStats = {
   algorithm: string;
   class_breakdown: Record<string, number>;
 };
-export type DetectResult = { type: "FeatureCollection"; features: GeoJSON.Feature[]; stats: DetectStats };
+export type UrbanRollup = {
+  impervious_gain_m2: number;
+  construction_area_m2: number;
+  new_construction_sites: number;
+  greenspace_loss_m2: number;
+  demolition_m2: number;
+  stage_area_m2: Record<string, number>;
+};
+export type DetectResult = {
+  type: "FeatureCollection";
+  features: GeoJSON.Feature[];
+  stats: DetectStats;
+  urban?: UrbanRollup | null;
+};
 
 // Tile URL for a STAC item (titiler-pgstac via proxy). Token can't ride tile
 // requests, so raster proxy tiles are fetched with the header-less <img>/GL path;

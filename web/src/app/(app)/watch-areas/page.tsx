@@ -30,6 +30,7 @@ export default function WatchAreasPage() {
   const [maxCloud, setMaxCloud] = useState(60);
   const [cadence, setCadence] = useState("on-ingest");
   const [alertClasses, setAlertClasses] = useState<string[]>([]);
+  const [urban, setUrban] = useState(false);
   const [geom, setGeom] = useState<GeoJSON.Polygon | null>(null);
   const toggleClass = (c: string) =>
     setAlertClasses((cur) => (cur.includes(c) ? cur.filter((x) => x !== c) : [...cur, c]));
@@ -52,6 +53,7 @@ export default function WatchAreasPage() {
         max_cloud: maxCloud,
         cadence,
         alert_classes: alertClasses,
+        classifier: urban ? "urban" : "standard",
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["watch-areas"] });
@@ -63,6 +65,7 @@ export default function WatchAreasPage() {
       setMaxCloud(60);
       setCadence("on-ingest");
       setAlertClasses([]);
+      setUrban(false);
     },
   });
 
@@ -252,6 +255,32 @@ export default function WatchAreasPage() {
                   );
                 })}
               </div>
+            </div>
+
+            <div className="sm:col-span-3">
+              <button
+                type="button"
+                onClick={() => setUrban((v) => !v)}
+                className="panel flex w-full items-center gap-2.5 p-2.5 text-start"
+                style={{ borderColor: urban ? "var(--accent)" : "var(--border)" }}
+              >
+                <span
+                  className="grid h-4 w-4 shrink-0 place-items-center rounded"
+                  style={{ background: urban ? "var(--accent)" : "transparent", border: `1px solid ${urban ? "var(--accent)" : "var(--border)"}` }}
+                >
+                  {urban && (
+                    <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="var(--bg)" strokeWidth="3">
+                      <path d="M5 12l5 5L20 7" />
+                    </svg>
+                  )}
+                </span>
+                <span>
+                  <span className="text-xs font-600">🏙 {t("detect.urban")}</span>
+                  <span className="telemetry mt-0.5 block text-[9px]" style={{ color: "var(--muted)" }}>
+                    {t("detect.urbanHint")}
+                  </span>
+                </span>
+              </button>
             </div>
           </div>
 

@@ -12,6 +12,7 @@ from .classify import classify
 from .config import Settings
 from .reader import affine_for, read_pair
 from .schemas import DetectionStats, DetectRequest, DetectResponse
+from .urban import classify_urban, urban_rollup
 from .vectorize import geodesic_area_m2, polygonize
 
 
@@ -32,6 +33,7 @@ def run_detection(req: DetectRequest, cfg: Optional[Settings] = None) -> DetectR
     magnitude = algo.run(pair.before, pair.after)  # (H,W) [0,1]
     mask = magnitude >= req.threshold
 
+    urban_mode = req.classifier == "urban"
     features: list[dict[str, Any]] = []
     class_area: dict[str, float] = {}
     changed_area = 0.0
@@ -47,24 +49,27 @@ def run_detection(req: DetectRequest, cfg: Optional[Settings] = None) -> DetectR
         before_mean = pair.before[:, pmask].mean(axis=1)
         after_mean = pair.after[:, pmask].mean(axis=1)
         conf_mag = float(magnitude[pmask].mean())
-        label, cls_conf = classify(before_mean, after_mean)
+        extra: dict[str, Any] = {}
+        if urban_mode:
+            label, cls_conf, extra = classify_urban(before_mean, after_mean)
+        else:
+            label, cls_conf = classify(before_mean, after_mean)
         area = geodesic_area_m2(poly)
         changed_area += area
         class_area[label] = class_area.get(label, 0.0) + area
 
-        features.append({
-            "type": "Feature",
-            "geometry": mapping(poly),
-            "properties": {
-                "change_class": label,
-                "confidence": round((conf_mag + cls_conf) / 2, 3),
-                "magnitude": round(conf_mag, 3),
-                "area_m2": round(area, 1),
-                "algorithm": req.algorithm,
-                "before_datetime": req.before.datetime,
-                "after_datetime": req.after.datetime,
-            },
-        })
+        props = {
+            "change_class": label,
+            "confidence": round((conf_mag + cls_conf) / 2, 3),
+            "magnitude": round(conf_mag, 3),
+            "area_m2": round(area, 1),
+            "algorithm": req.algorithm,
+            "classifier": req.classifier,
+            "before_datetime": req.before.datetime,
+            "after_datetime": req.after.datetime,
+        }
+        props.update(extra)
+        features.append({"type": "Feature", "geometry": mapping(poly), "properties": props})
 
     valid_px = int(np.count_nonzero(algo._valid_mask(pair.before, pair.after)))
     changed_px = int(np.count_nonzero(mask))
@@ -75,4 +80,5 @@ def run_detection(req: DetectRequest, cfg: Optional[Settings] = None) -> DetectR
         algorithm=req.algorithm,
         class_breakdown={k: round(v, 1) for k, v in class_area.items()},
     )
-    return DetectResponse(features=features, stats=stats)
+    urban = urban_rollup(features) if urban_mode else None
+    return DetectResponse(features=features, stats=stats, urban=urban)

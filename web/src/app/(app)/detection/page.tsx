@@ -10,18 +10,10 @@ import { api, type DetectResult, type StacItem } from "@/lib/api";
 import { useI18n } from "@/i18n/LocaleProvider";
 import type { MsgKey } from "@/i18n/dict";
 import { classBreakdown, downloadCSV, downloadGeoJSON, km2, nearestScene, printReport } from "@/lib/report";
+import { CLASS_COLOR } from "@/lib/changeClasses";
 import type { GeoJSONFC } from "@/lib/api";
 
 const ALGORITHMS = ["image_diff", "vegetation"] as const;
-
-const CLASS_COLOR: Record<string, string> = {
-  urban_growth: "#c46a5a",
-  vegetation_loss: "#cb9a54",
-  vegetation_gain: "#8c9258",
-  water_change: "#5a8fc4",
-  bare_soil: "#b7bd90",
-  unknown: "#a8ae79",
-};
 
 function bboxIntersection(a: number[], b: number[]): number[] {
   return [Math.max(a[0], b[0]), Math.max(a[1], b[1]), Math.min(a[2], b[2]), Math.min(a[3], b[3])];
@@ -51,6 +43,7 @@ export default function DetectionPage() {
   const [afterDate, setAfterDate] = useState("");
   const [maxCloud, setMaxCloud] = useState(100);
   const [algorithm, setAlgorithm] = useState<(typeof ALGORITHMS)[number]>("image_diff");
+  const [urban, setUrban] = useState(false);
   const [threshold, setThreshold] = useState(0.5);
   const [result, setResult] = useState<DetectResult | null>(null);
   const [report, setReport] = useState<ReportModel | null>(null);
@@ -84,6 +77,7 @@ export default function DetectionPage() {
         after: { collection: after.collection, item_id: after.id, datetime: date(after) },
         aoi,
         algorithm,
+        classifier: urban ? "urban" : "standard",
         threshold,
         min_area_m2: 40000,
       });
@@ -204,6 +198,31 @@ export default function DetectionPage() {
             <input type="range" min={0.2} max={0.9} step={0.05} value={threshold} onChange={(e) => setThreshold(Number(e.target.value))} className="w-full accent-[var(--accent)]" />
           </Field>
 
+          {/* Urban analysis mode — municipal construction-lifecycle classifier. */}
+          <button
+            type="button"
+            onClick={() => setUrban((v) => !v)}
+            className="panel flex w-full items-start gap-2.5 p-3 text-start"
+            style={{ borderColor: urban ? "var(--accent)" : "var(--border)" }}
+          >
+            <span
+              className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded"
+              style={{ background: urban ? "var(--accent)" : "transparent", border: `1px solid ${urban ? "var(--accent)" : "var(--border)"}` }}
+            >
+              {urban && (
+                <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="var(--bg)" strokeWidth="3">
+                  <path d="M5 12l5 5L20 7" />
+                </svg>
+              )}
+            </span>
+            <span>
+              <span className="text-xs font-600">🏙 {t("detect.urban")}</span>
+              <span className="telemetry mt-0.5 block text-[9px]" style={{ color: "var(--muted)" }}>
+                {t("detect.urbanHint")}
+              </span>
+            </span>
+          </button>
+
           <button className="btn w-full" disabled={!before || !after || run.isPending} onClick={() => run.mutate()}>
             {run.isPending ? t("detect.running") : t("detect.run")}
           </button>
@@ -231,6 +250,25 @@ export default function DetectionPage() {
                     <span className="telemetry">{km2(v)} km²</span>
                   </div>
                 ))}
+              {result.urban && (
+                <div className="mt-3 rounded-lg p-2.5" style={{ background: "var(--panel-2)" }}>
+                  <div className="label mb-2">🏙 {t("urban.title")}</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <UrbanStat label={t("urban.impervious")} value={`${km2(result.urban.impervious_gain_m2)} km²`} accent />
+                    <UrbanStat label={t("urban.construction")} value={`${km2(result.urban.construction_area_m2)} km²`} />
+                    <UrbanStat label={t("urban.sites")} value={String(result.urban.new_construction_sites)} />
+                    <UrbanStat label={t("urban.demolition")} value={`${km2(result.urban.demolition_m2)} km²`} />
+                  </div>
+                  <div className="label mb-1 mt-3">{t("urban.stages")}</div>
+                  {([["1", t("urban.stage1")], ["2", t("urban.stage2")], ["3", t("urban.stage3")]] as const).map(([k, lbl]) => (
+                    <div key={k} className="flex justify-between text-[11px]">
+                      <span style={{ color: "var(--muted)" }}>{lbl}</span>
+                      <span className="telemetry">{km2(result.urban!.stage_area_m2[k] ?? 0)} km²</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <div className="label mt-3">{t("common.export")}</div>
               <div className="grid grid-cols-3 gap-1.5">
                 <button className="chip" onClick={exportPdf}>PDF</button>
@@ -280,6 +318,18 @@ function Row({ k, v }: { k: string; v: React.ReactNode }) {
     <div className="flex justify-between text-xs">
       <span style={{ color: "var(--muted)" }}>{k}</span>
       <span className="telemetry">{v}</span>
+    </div>
+  );
+}
+function UrbanStat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+  return (
+    <div className="rounded-md p-2" style={{ background: "var(--bg)" }}>
+      <div className="telemetry text-sm font-600" style={{ color: accent ? "var(--accent)" : "var(--text)" }}>
+        {value}
+      </div>
+      <div className="telemetry mt-0.5 text-[9px]" style={{ color: "var(--muted)" }}>
+        {label}
+      </div>
     </div>
   );
 }

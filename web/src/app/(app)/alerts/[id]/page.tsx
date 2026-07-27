@@ -11,16 +11,9 @@ import { api } from "@/lib/api";
 import { useI18n } from "@/i18n/LocaleProvider";
 import type { MsgKey } from "@/i18n/dict";
 import { classBreakdown, downloadCSV, downloadGeoJSON, km2, printReport } from "@/lib/report";
+import { CLASS_COLOR } from "@/lib/changeClasses";
 
 const SEV_COLOR: Record<string, string> = { critical: "#c46a5a", warning: "#cb9a54", info: "#a8ae79" };
-const CLASS_COLOR: Record<string, string> = {
-  urban_growth: "#c46a5a",
-  vegetation_loss: "#cb9a54",
-  vegetation_gain: "#8c9258",
-  water_change: "#5a8fc4",
-  bare_soil: "#b7bd90",
-  unknown: "#757847",
-};
 
 export default function AlertDetailPage() {
   const { id } = useParams<{ id: string }>();

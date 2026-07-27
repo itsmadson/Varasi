@@ -4,6 +4,7 @@ import maplibregl from "maplibre-gl";
 import { useEffect, useRef } from "react";
 import { getToken, itemTileJson } from "@/lib/api";
 import type { GeoJSONFC } from "@/lib/api";
+import { classMatchExpr } from "@/lib/changeClasses";
 
 type Basemap = "dark" | "light" | "satellite";
 
@@ -32,16 +33,7 @@ function styleFor(b: Basemap): maplibregl.StyleSpecification {
   };
 }
 
-const CLASS_COLORS: (string | string[])[] = [
-  "match",
-  ["get", "change_class"],
-  "urban_growth", "#c46a5a",
-  "vegetation_loss", "#cb9a54",
-  "vegetation_gain", "#8c9258",
-  "water_change", "#5a8fc4",
-  "bare_soil", "#b7bd90",
-  "#a8ae79", // unknown / default
-];
+const CLASS_COLORS = classMatchExpr();
 
 export function MapView({
   footprints,

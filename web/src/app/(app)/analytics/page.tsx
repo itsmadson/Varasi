@@ -5,15 +5,7 @@ import { PageHeader, Spinner, Stat } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useI18n } from "@/i18n/LocaleProvider";
 import type { MsgKey } from "@/i18n/dict";
-
-const CLASS_COLOR: Record<string, string> = {
-  urban_growth: "#c46a5a",
-  vegetation_loss: "#cb9a54",
-  vegetation_gain: "#8c9258",
-  water_change: "#5a8fc4",
-  bare_soil: "#b7bd90",
-  unknown: "#757847",
-};
+import { CLASS_COLOR } from "@/lib/changeClasses";
 
 const km2 = (m2: number) => (m2 / 1e6).toFixed(2);
 

@@ -19,6 +19,7 @@ type watchAreaReq struct {
 	MaxCloud     int             `json:"max_cloud"`
 	AlertClasses []string        `json:"alert_classes"`
 	Cadence      string          `json:"cadence"`
+	Classifier   string          `json:"classifier"`
 }
 
 // createWatchArea stores an AOI (as MultiPolygon/4326) that will trigger CD.
@@ -47,14 +48,17 @@ func (s *Server) createWatchArea(w http.ResponseWriter, r *http.Request) {
 	if req.Cadence == "" {
 		req.Cadence = "on-ingest"
 	}
+	if req.Classifier == "" {
+		req.Classifier = "standard"
+	}
 	var id uuid.UUID
 	err := s.db.Pool.QueryRow(r.Context(),
-		`INSERT INTO varasi.watch_areas(org_id,project_id,name,geom,tags,priority,threshold,notify,max_cloud,alert_classes,cadence)
-		 VALUES($1,$2,$3, ST_Multi(ST_SetSRID(ST_GeomFromGeoJSON($4),4326)), $5,$6,$7,$8,$9,$10,$11)
+		`INSERT INTO varasi.watch_areas(org_id,project_id,name,geom,tags,priority,threshold,notify,max_cloud,alert_classes,cadence,classifier)
+		 VALUES($1,$2,$3, ST_Multi(ST_SetSRID(ST_GeomFromGeoJSON($4),4326)), $5,$6,$7,$8,$9,$10,$11,$12)
 		 RETURNING id`,
 		c.OrgID, req.ProjectID, req.Name, string(req.Geometry),
 		req.Tags, req.Priority, req.Threshold, req.Notify,
-		req.MaxCloud, req.AlertClasses, req.Cadence,
+		req.MaxCloud, req.AlertClasses, req.Cadence, req.Classifier,
 	).Scan(&id)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, "invalid geometry: "+err.Error())
@@ -68,7 +72,7 @@ func (s *Server) createWatchArea(w http.ResponseWriter, r *http.Request) {
 func (s *Server) listWatchAreas(w http.ResponseWriter, r *http.Request) {
 	c := claimsFrom(r.Context())
 	rows, err := s.db.Pool.Query(r.Context(),
-		`SELECT id,name,tags,priority,threshold,enabled,max_cloud,alert_classes,cadence,ST_AsGeoJSON(geom)
+		`SELECT id,name,tags,priority,threshold,enabled,max_cloud,alert_classes,cadence,classifier,ST_AsGeoJSON(geom)
 		 FROM varasi.watch_areas WHERE org_id=$1 ORDER BY created_at DESC`, c.OrgID)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "query")
@@ -78,12 +82,12 @@ func (s *Server) listWatchAreas(w http.ResponseWriter, r *http.Request) {
 	features := []map[string]any{}
 	for rows.Next() {
 		var id uuid.UUID
-		var name, cadence, geojson string
+		var name, cadence, classifier, geojson string
 		var tags, alertClasses []string
 		var priority, maxCloud int
 		var threshold float64
 		var enabled bool
-		if err := rows.Scan(&id, &name, &tags, &priority, &threshold, &enabled, &maxCloud, &alertClasses, &cadence, &geojson); err != nil {
+		if err := rows.Scan(&id, &name, &tags, &priority, &threshold, &enabled, &maxCloud, &alertClasses, &cadence, &classifier, &geojson); err != nil {
 			writeErr(w, http.StatusInternalServerError, "scan")
 			return
 		}
@@ -95,6 +99,7 @@ func (s *Server) listWatchAreas(w http.ResponseWriter, r *http.Request) {
 				"name": name, "tags": tags, "priority": priority,
 				"threshold": threshold, "enabled": enabled,
 				"max_cloud": maxCloud, "alert_classes": alertClasses, "cadence": cadence,
+				"classifier": classifier,
 			},
 		})
 	}

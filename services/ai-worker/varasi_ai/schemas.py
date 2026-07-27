@@ -23,6 +23,8 @@ class DetectRequest(BaseModel):
     algorithm: str = "image_diff"
     threshold: float = Field(0.35, ge=0.0, le=1.0)
     min_area_m2: float = Field(2000.0, ge=0.0)
+    # "standard" broad land-cover labels, or "urban" construction-lifecycle labels.
+    classifier: str = "standard"
 
 
 class DetectionStats(BaseModel):
@@ -37,3 +39,5 @@ class DetectResponse(BaseModel):
     type: str = "FeatureCollection"
     features: list[dict[str, Any]]
     stats: DetectionStats
+    # Municipal rollup, present only for the "urban" classifier.
+    urban: Optional[dict[str, Any]] = None

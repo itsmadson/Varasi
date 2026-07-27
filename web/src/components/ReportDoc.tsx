@@ -1,15 +1,7 @@
 "use client";
 
 import { km2 } from "@/lib/report";
-
-const CLASS_COLOR: Record<string, string> = {
-  urban_growth: "#c46a5a",
-  vegetation_loss: "#cb9a54",
-  vegetation_gain: "#8c9258",
-  water_change: "#5a8fc4",
-  bare_soil: "#b7bd90",
-  unknown: "#757847",
-};
+import { CLASS_COLOR } from "@/lib/changeClasses";
 
 export type ReportModel = {
   kind: string;

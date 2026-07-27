@@ -4,19 +4,11 @@ import maplibregl from "maplibre-gl";
 import { useEffect, useRef, useState } from "react";
 import { getToken } from "@/lib/api";
 import type { GeoJSONFC } from "@/lib/api";
+import { classMatchExpr } from "@/lib/changeClasses";
 
 type Item = { collection: string; id: string };
 
-const CLASS_COLORS: (string | string[])[] = [
-  "match",
-  ["get", "change_class"],
-  "urban_growth", "#c46a5a",
-  "vegetation_loss", "#cb9a54",
-  "vegetation_gain", "#8c9258",
-  "water_change", "#5a8fc4",
-  "bare_soil", "#b7bd90",
-  "#a8ae79",
-];
+const CLASS_COLORS = classMatchExpr();
 
 function baseStyle(): maplibregl.StyleSpecification {
   return {
