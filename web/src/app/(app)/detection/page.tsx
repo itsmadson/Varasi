@@ -11,6 +11,7 @@ import { useI18n } from "@/i18n/LocaleProvider";
 import type { MsgKey } from "@/i18n/dict";
 import { classBreakdown, downloadCSV, downloadGeoJSON, km2, nearestScene, printReport } from "@/lib/report";
 import { ClassStyleControl, useClassStyle } from "@/components/ClassStyleControl";
+import { needsUrban } from "@/lib/changeClasses";
 import type { GeoJSONFC } from "@/lib/api";
 
 const ALGORITHMS = ["image_diff", "vegetation"] as const;
@@ -43,7 +44,6 @@ export default function DetectionPage() {
   const [afterDate, setAfterDate] = useState("");
   const [maxCloud, setMaxCloud] = useState(100);
   const [algorithm, setAlgorithm] = useState<(typeof ALGORITHMS)[number]>("image_diff");
-  const [urban, setUrban] = useState(false);
   const [threshold, setThreshold] = useState(0.5);
   const [minArea, setMinArea] = useState(40000);
   const [result, setResult] = useState<DetectResult | null>(null);
@@ -79,7 +79,8 @@ export default function DetectionPage() {
         after: { collection: after.collection, item_id: after.id, datetime: date(after) },
         aoi,
         algorithm,
-        classifier: urban ? "urban" : "standard",
+        // Urban classifier runs automatically when a construction class is ticked.
+        classifier: needsUrban(cs.enabled) ? "urban" : "standard",
         threshold,
         min_area_m2: minArea,
       });
@@ -229,31 +230,6 @@ export default function DetectionPage() {
               className="w-full accent-[var(--accent)]"
             />
           </Field>
-
-          {/* Urban analysis mode — municipal construction-lifecycle classifier. */}
-          <button
-            type="button"
-            onClick={() => setUrban((v) => !v)}
-            className="panel flex w-full items-start gap-2.5 p-3 text-start"
-            style={{ borderColor: urban ? "var(--accent)" : "var(--border)" }}
-          >
-            <span
-              className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded"
-              style={{ background: urban ? "var(--accent)" : "transparent", border: `1px solid ${urban ? "var(--accent)" : "var(--border)"}` }}
-            >
-              {urban && (
-                <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="var(--bg)" strokeWidth="3">
-                  <path d="M5 12l5 5L20 7" />
-                </svg>
-              )}
-            </span>
-            <span>
-              <span className="text-xs font-600">🏙 {t("detect.urban")}</span>
-              <span className="telemetry mt-0.5 block text-[9px]" style={{ color: "var(--muted)" }}>
-                {t("detect.urbanHint")}
-              </span>
-            </span>
-          </button>
 
           <ClassStyleControl
             style={cs.style}

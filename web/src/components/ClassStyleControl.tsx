@@ -15,24 +15,30 @@ function initial(): ClassStyle {
   return s;
 }
 
-// useClassStyle holds per-class colour + on/off, persisted to localStorage so a
-// city's chosen palette and filter survive reloads.
-export function useClassStyle() {
+// useClassStyle holds per-class colour + on/off. With a storeKey it persists to
+// localStorage (global detection palette); pass null for ephemeral form state
+// (e.g. a watch-area creation form) that must not touch the shared palette.
+export function useClassStyle(storeKey: string | null = STORE) {
   const [style, setStyle] = useState<ClassStyle>(initial);
 
   useEffect(() => {
+    if (!storeKey) return;
     try {
-      const raw = localStorage.getItem(STORE);
+      const raw = localStorage.getItem(storeKey);
       if (raw) setStyle({ ...initial(), ...(JSON.parse(raw) as ClassStyle) });
     } catch {}
-  }, []);
+  }, [storeKey]);
 
-  const persist = useCallback((next: ClassStyle) => {
-    setStyle(next);
-    try {
-      localStorage.setItem(STORE, JSON.stringify(next));
-    } catch {}
-  }, []);
+  const persist = useCallback(
+    (next: ClassStyle) => {
+      setStyle(next);
+      if (!storeKey) return;
+      try {
+        localStorage.setItem(storeKey, JSON.stringify(next));
+      } catch {}
+    },
+    [storeKey],
+  );
 
   const setColor = useCallback((cls: string, color: string) => persist({ ...style, [cls]: { ...style[cls], color } }), [style, persist]);
   const toggle = useCallback((cls: string) => persist({ ...style, [cls]: { ...style[cls], on: !style[cls].on } }), [style, persist]);

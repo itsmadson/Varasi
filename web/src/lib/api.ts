@@ -101,7 +101,7 @@ export type UrbanRollup = {
   impervious_gain_m2: number;
   construction_area_m2: number;
   new_construction_sites: number;
-  greenspace_loss_m2: number;
+  vegetation_loss_m2: number;
   demolition_m2: number;
   stage_area_m2: Record<string, number>;
 };

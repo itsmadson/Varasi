@@ -9,10 +9,10 @@ import { DrawMap } from "@/components/DrawMap";
 import { PageHeader, Spinner } from "@/components/ui";
 import { api, type EvalResult } from "@/lib/api";
 import { useI18n } from "@/i18n/LocaleProvider";
-import type { MsgKey } from "@/i18n/dict";
+import { ClassStyleControl, useClassStyle } from "@/components/ClassStyleControl";
+import { ALL_CLASSES, needsUrban } from "@/lib/changeClasses";
 
 const PRIORITY_COLOR = ["", "var(--danger)", "var(--warn)", "var(--accent)", "var(--muted)", "var(--muted)"];
-const ALERT_CLASSES = ["urban_growth", "vegetation_loss", "vegetation_gain", "water_change", "bare_soil"] as const;
 
 export default function WatchAreasPage() {
   const { t } = useI18n();
@@ -29,11 +29,9 @@ export default function WatchAreasPage() {
   const [threshold, setThreshold] = useState(0.1);
   const [maxCloud, setMaxCloud] = useState(60);
   const [cadence, setCadence] = useState("on-ingest");
-  const [alertClasses, setAlertClasses] = useState<string[]>([]);
-  const [urban, setUrban] = useState(false);
   const [geom, setGeom] = useState<GeoJSON.Polygon | null>(null);
-  const toggleClass = (c: string) =>
-    setAlertClasses((cur) => (cur.includes(c) ? cur.filter((x) => x !== c) : [...cur, c]));
+  // Ephemeral picker (does not touch the global detection palette).
+  const cs = useClassStyle(null);
 
   const evaluate = useMutation({
     mutationFn: (id: string) => api.evaluateWatchArea(id),
@@ -44,17 +42,21 @@ export default function WatchAreasPage() {
   });
 
   const create = useMutation({
-    mutationFn: () =>
-      api.createWatchArea({
+    mutationFn: () => {
+      const enabled = [...cs.enabled];
+      // All ticked → alert on any class; a subset → alert only on those.
+      const alert_classes = enabled.length === ALL_CLASSES.length ? [] : enabled;
+      return api.createWatchArea({
         name,
         geometry: geom,
         priority,
         threshold,
         max_cloud: maxCloud,
         cadence,
-        alert_classes: alertClasses,
-        classifier: urban ? "urban" : "standard",
-      }),
+        alert_classes,
+        classifier: needsUrban(cs.enabled) ? "urban" : "standard",
+      });
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["watch-areas"] });
       setOpen(false);
@@ -64,8 +66,7 @@ export default function WatchAreasPage() {
       setThreshold(0.1);
       setMaxCloud(60);
       setCadence("on-ingest");
-      setAlertClasses([]);
-      setUrban(false);
+      cs.reset();
     },
   });
 
@@ -235,52 +236,13 @@ export default function WatchAreasPage() {
 
             <div className="sm:col-span-3">
               <label className="label mb-1.5 block">{t("wa.alertClasses")}</label>
-              <div className="flex flex-wrap gap-1.5">
-                {ALERT_CLASSES.map((c) => {
-                  const on = alertClasses.includes(c);
-                  return (
-                    <button
-                      key={c}
-                      type="button"
-                      onClick={() => toggleClass(c)}
-                      className="chip"
-                      style={{
-                        color: on ? "var(--bg)" : "var(--muted)",
-                        background: on ? "var(--accent)" : "transparent",
-                        borderColor: on ? "var(--accent)" : "var(--border)",
-                      }}
-                    >
-                      {t(`class.${c}` as MsgKey)}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="sm:col-span-3">
-              <button
-                type="button"
-                onClick={() => setUrban((v) => !v)}
-                className="panel flex w-full items-center gap-2.5 p-2.5 text-start"
-                style={{ borderColor: urban ? "var(--accent)" : "var(--border)" }}
-              >
-                <span
-                  className="grid h-4 w-4 shrink-0 place-items-center rounded"
-                  style={{ background: urban ? "var(--accent)" : "transparent", border: `1px solid ${urban ? "var(--accent)" : "var(--border)"}` }}
-                >
-                  {urban && (
-                    <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="var(--bg)" strokeWidth="3">
-                      <path d="M5 12l5 5L20 7" />
-                    </svg>
-                  )}
-                </span>
-                <span>
-                  <span className="text-xs font-600">🏙 {t("detect.urban")}</span>
-                  <span className="telemetry mt-0.5 block text-[9px]" style={{ color: "var(--muted)" }}>
-                    {t("detect.urbanHint")}
-                  </span>
-                </span>
-              </button>
+              <ClassStyleControl
+                style={cs.style}
+                onColor={cs.setColor}
+                onToggle={cs.toggle}
+                onToggleCategory={cs.toggleCategory}
+                onReset={cs.reset}
+              />
             </div>
           </div>
 

@@ -24,8 +24,8 @@ URBAN_CLASSES = [
     "building_demolition",
     "paving",
     "soil_sealing",
-    "greenspace_loss",
-    "greenspace_gain",
+    "vegetation_loss",
+    "vegetation_gain",
     "water_change",
     "unknown",
 ]
@@ -77,8 +77,8 @@ def classify_urban(before: np.ndarray, after: np.ndarray) -> tuple[str, float, d
     sig["water_change"] = max(0.0, af["water"] - bf["water"]) * 2.0
 
     # Green-space transitions (municipal parks / landscaping).
-    sig["greenspace_gain"] = max(0.0, d_green) * 2.5
-    sig["greenspace_loss"] = max(0.0, -d_green) * 2.0 * (1.0 - af["water"])
+    sig["vegetation_gain"] = max(0.0, d_green) * 2.5
+    sig["vegetation_loss"] = max(0.0, -d_green) * 2.0 * (1.0 - af["water"])
 
     # Demolition: built/impervious before, darker & de-sealed after (rubble/bare).
     sig["building_demolition"] = bf["impervious"] * max(0.0, -d_imperv) * 3.0 + bf["impervious"] * max(0.0, -d_bright) * 1.5
@@ -128,7 +128,7 @@ def urban_rollup(features: list[dict[str, Any]]) -> dict[str, Any]:
             constr += area
         if cls == "new_construction":
             sites += 1
-        if cls == "greenspace_loss":
+        if cls == "vegetation_loss":
             green_loss += area
         if cls == "building_demolition":
             demol += area
@@ -139,7 +139,7 @@ def urban_rollup(features: list[dict[str, Any]]) -> dict[str, Any]:
         "impervious_gain_m2": round(imperv_gain, 1),
         "construction_area_m2": round(constr, 1),
         "new_construction_sites": sites,
-        "greenspace_loss_m2": round(green_loss, 1),
+        "vegetation_loss_m2": round(green_loss, 1),
         "demolition_m2": round(demol, 1),
         "stage_area_m2": {str(k): round(v, 1) for k, v in stages.items()},
     }

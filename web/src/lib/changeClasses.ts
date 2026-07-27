@@ -2,22 +2,20 @@
 // used by every panel and by the MapLibre paint expressions.
 
 export const CLASS_COLOR: Record<string, string> = {
-  // standard land-cover
-  urban_growth: "#c46a5a",
-  vegetation_loss: "#cb9a54",
-  vegetation_gain: "#8c9258",
-  water_change: "#5a8fc4",
-  bare_soil: "#b7bd90",
-  unknown: "#a8ae79",
-  // urban construction lifecycle
+  // construction lifecycle (urban classifier)
   excavation: "#8a6d3b",
   earthworks_fill: "#d8c98a",
   new_construction: "#d06b4f",
   building_demolition: "#7a4a44",
   paving: "#5b5f6b",
   soil_sealing: "#b08a5a",
-  greenspace_loss: "#cb9a54",
-  greenspace_gain: "#8c9258",
+  urban_growth: "#c46a5a",
+  // vegetation / water / land
+  vegetation_gain: "#6f9a3f",
+  vegetation_loss: "#cb9a54",
+  water_change: "#5a8fc4",
+  bare_soil: "#b7bd90",
+  unknown: "#a8ae79",
 };
 
 // Categories group the change classes into the buckets a city cares about.
@@ -25,13 +23,20 @@ export const CLASS_COLOR: Record<string, string> = {
 // show and can recolor each one.
 export const CATEGORIES: { key: string; classes: string[] }[] = [
   { key: "construction", classes: ["excavation", "earthworks_fill", "new_construction", "building_demolition", "paving", "soil_sealing", "urban_growth"] },
-  { key: "vegetation", classes: ["greenspace_gain", "greenspace_loss", "vegetation_gain", "vegetation_loss"] },
+  { key: "vegetation", classes: ["vegetation_gain", "vegetation_loss"] },
   { key: "water", classes: ["water_change"] },
   { key: "soil", classes: ["bare_soil"] },
   { key: "other", classes: ["unknown"] },
 ];
 
 export const ALL_CLASSES = CATEGORIES.flatMap((c) => c.classes);
+
+// Construction classes are produced only by the urban classifier — selecting any
+// of them switches a run into urban mode.
+export const CONSTRUCTION_CLASSES = CATEGORIES[0].classes;
+export function needsUrban(enabled: Set<string>): boolean {
+  return CONSTRUCTION_CLASSES.some((c) => c !== "urban_growth" && enabled.has(c));
+}
 
 // MapLibre "match" expression on change_class. Pass a color override map to
 // reflect user style edits; unlisted classes fall back to the shared palette.
