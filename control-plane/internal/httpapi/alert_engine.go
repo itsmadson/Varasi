@@ -120,10 +120,11 @@ func (s *Server) evaluateWatchArea(ctx context.Context, orgID, waID uuid.UUID) (
 	var maxCloud int
 	var alertClasses []string
 	var classifier string
+	var modelsRaw []byte
 	err := s.db.Pool.QueryRow(ctx,
-		`SELECT name, threshold, ST_AsGeoJSON(geom), notify, max_cloud, alert_classes, classifier
+		`SELECT name, threshold, ST_AsGeoJSON(geom), notify, max_cloud, alert_classes, classifier, models
 		 FROM varasi.watch_areas WHERE id=$1 AND org_id=$2`, waID, orgID,
-	).Scan(&name, &threshold, &geom, &notifyRaw, &maxCloud, &alertClasses, &classifier)
+	).Scan(&name, &threshold, &geom, &notifyRaw, &maxCloud, &alertClasses, &classifier, &modelsRaw)
 	if err != nil {
 		return evalResult{}, fmt.Errorf("watch area not found")
 	}
@@ -150,7 +151,7 @@ func (s *Server) evaluateWatchArea(ctx context.Context, orgID, waID uuid.UUID) (
 	if classifier == "" {
 		classifier = "standard"
 	}
-	reqJSON, _ := json.Marshal(map[string]any{
+	req := map[string]any{
 		"before":      map[string]any{"collection": before.Collection, "item_id": before.ID, "datetime": before.Properties.Datetime},
 		"after":       map[string]any{"collection": after.Collection, "item_id": after.ID, "datetime": after.Properties.Datetime},
 		"aoi":         json.RawMessage(geom),
@@ -158,7 +159,15 @@ func (s *Server) evaluateWatchArea(ctx context.Context, orgID, waID uuid.UUID) (
 		"classifier":  classifier,
 		"threshold":   0.4,
 		"min_area_m2": 30000,
-	})
+	}
+	// Route detection to the selected tags/models when the area specifies them.
+	if len(alertClasses) > 0 {
+		req["tags"] = alertClasses
+	}
+	if len(modelsRaw) > 0 && string(modelsRaw) != "{}" {
+		req["models"] = json.RawMessage(modelsRaw)
+	}
+	reqJSON, _ := json.Marshal(req)
 
 	var jobID uuid.UUID
 	_ = s.db.Pool.QueryRow(ctx,

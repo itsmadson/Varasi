@@ -67,6 +67,7 @@ func (s *Server) Router() http.Handler {
 
 		r.Get("/detections", s.listDetections)
 		r.With(requireRole("editor")).Post("/detections/run", s.runDetection)
+		r.Get("/models", s.listModels)
 
 		r.Get("/analytics/summary", s.analyticsSummary)
 

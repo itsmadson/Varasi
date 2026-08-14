@@ -25,6 +25,13 @@ class DetectRequest(BaseModel):
     min_area_m2: float = Field(2000.0, ge=0.0)
     # "standard" broad land-cover labels, or "urban" construction-lifecycle labels.
     classifier: str = "standard"
+    # Model-zoo routing (optional). tags = which change_class tags to detect;
+    # models = per-tag backend override; allow_cloud gates cloud backends;
+    # prompt feeds open-vocabulary backends (Grounded-SAM).
+    tags: Optional[list[str]] = None
+    models: Optional[dict[str, str]] = None
+    allow_cloud: bool = False
+    prompt: Optional[str] = None
 
 
 class DetectionStats(BaseModel):
@@ -41,3 +48,5 @@ class DetectResponse(BaseModel):
     stats: DetectionStats
     # Municipal rollup, present only for the "urban" classifier.
     urban: Optional[dict[str, Any]] = None
+    # {tag: backend_name} — which model actually produced each tag.
+    provenance: Optional[dict[str, str]] = None

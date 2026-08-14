@@ -4,6 +4,15 @@ import { useCallback, useEffect, useState } from "react";
 import { ALL_CLASSES, CATEGORIES, CLASS_COLOR } from "@/lib/changeClasses";
 import { useI18n } from "@/i18n/LocaleProvider";
 import type { MsgKey } from "@/i18n/dict";
+import type { ModelInfo } from "@/lib/api";
+
+// Backends whose tags overlap a category (plus generic "change"/"custom" ones).
+function modelsForCategory(catalog: ModelInfo[], classes: string[]): ModelInfo[] {
+  const set = new Set(classes);
+  return catalog
+    .filter((m) => m.tags.some((t) => set.has(t) || t === "change" || t === "custom"))
+    .sort((a, b) => b.rank - a.rank);
+}
 
 export type ClassStyle = Record<string, { color: string; on: boolean }>;
 
@@ -68,6 +77,9 @@ export function ClassStyleControl({
   onToggle,
   onToggleCategory,
   onReset,
+  catalog,
+  modelByCategory,
+  onModel,
 }: {
   style: ClassStyle;
   present?: Set<string>; // classes actually in the current result (bolded)
@@ -75,6 +87,9 @@ export function ClassStyleControl({
   onToggle: (cls: string) => void;
   onToggleCategory: (classes: string[], on: boolean) => void;
   onReset: () => void;
+  catalog?: ModelInfo[];       // model zoo — enables a per-category model dropdown
+  modelByCategory?: Record<string, string>;
+  onModel?: (category: string, backend: string) => void;
 }) {
   const { t } = useI18n();
   const [openCat, setOpenCat] = useState<Record<string, boolean>>({ construction: true, vegetation: true });
@@ -113,6 +128,25 @@ export function ClassStyleControl({
             </div>
             {open && (
               <div className="space-y-1 px-2 pb-2">
+                {catalog && onModel && (
+                  <div className="mb-1.5 flex items-center gap-1.5">
+                    <span className="telemetry text-[9px]" style={{ color: "var(--muted)" }}>
+                      {t("model.label")}
+                    </span>
+                    <select
+                      className="input !py-1 !text-[11px]"
+                      value={modelByCategory?.[cat.key] ?? "auto"}
+                      onChange={(e) => onModel(cat.key, e.target.value)}
+                    >
+                      <option value="auto">{t("model.auto")}</option>
+                      {modelsForCategory(catalog, cat.classes).map((m) => (
+                        <option key={m.name} value={m.name}>
+                          {m.title} · {m.runtime}{m.available ? "" : " ⚠"}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 {cat.classes.map((c) => (
                   <div key={c} className="flex items-center gap-2">
                     <input type="checkbox" checked={style[c]?.on ?? false} onChange={() => onToggle(c)} className="accent-[var(--accent)]" />

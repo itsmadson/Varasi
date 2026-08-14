@@ -6,6 +6,7 @@ from fastapi import FastAPI, HTTPException
 from .algorithms import list_algorithms
 from .config import get_settings
 from .detect import run_detection
+from .models import catalog as model_catalog
 from .schemas import DetectRequest, DetectResponse
 
 app = FastAPI(title="Varasi AI Worker", version="0.1.0")
@@ -19,6 +20,12 @@ def healthz() -> dict[str, object]:
 @app.get("/algorithms")
 def algorithms() -> dict[str, list[str]]:
     return {"algorithms": list_algorithms()}
+
+
+@app.get("/models")
+def models() -> dict[str, list[dict]]:
+    """Catalog of detection backends: tags, paradigm, runtime, availability."""
+    return {"models": model_catalog()}
 
 
 @app.post("/detect", response_model=DetectResponse)

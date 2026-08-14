@@ -11,7 +11,7 @@ import { useI18n } from "@/i18n/LocaleProvider";
 import type { MsgKey } from "@/i18n/dict";
 import { classBreakdown, downloadCSV, downloadGeoJSON, km2, nearestScene, printReport } from "@/lib/report";
 import { ClassStyleControl, useClassStyle } from "@/components/ClassStyleControl";
-import { needsUrban } from "@/lib/changeClasses";
+import { CATEGORIES, needsUrban } from "@/lib/changeClasses";
 import type { GeoJSONFC } from "@/lib/api";
 
 const ALGORITHMS = ["image_diff", "vegetation"] as const;
@@ -52,6 +52,11 @@ export default function DetectionPage() {
   const cs = useClassStyle();
   const capture = useRef<(() => string | null) | null>(null);
 
+  const modelsQ = useQuery({ queryKey: ["models"], queryFn: api.models });
+  const catalog = modelsQ.data?.models ?? [];
+  const [modelByCategory, setModelByCategory] = useState<Record<string, string>>({});
+  const [allowCloud, setAllowCloud] = useState(false);
+
   // All rasters in the catalog — no collection gate.
   const scenes = useQuery({ queryKey: ["scenes-all-det"], queryFn: () => api.search({ limit: 60 }) });
   const items = scenes.data?.features ?? [];
@@ -70,6 +75,16 @@ export default function DetectionPage() {
     return { before: items.find((i) => i.id === beforeId), after: items.find((i) => i.id === afterId) };
   }, [mode, cloudy, items, beforeDate, afterDate, beforeId, afterId]);
 
+  // Per-tag backend override map from the per-category model dropdowns.
+  const buildModels = (): Record<string, string> => {
+    const m: Record<string, string> = {};
+    for (const cat of CATEGORIES) {
+      const pick = modelByCategory[cat.key];
+      if (pick && pick !== "auto") for (const c of cat.classes) if (cs.enabled.has(c)) m[c] = pick;
+    }
+    return m;
+  };
+
   const run = useMutation({
     mutationFn: () => {
       if (!before || !after) throw new Error(t("detect.pickTwo"));
@@ -83,6 +98,9 @@ export default function DetectionPage() {
         classifier: needsUrban(cs.enabled) ? "urban" : "standard",
         threshold,
         min_area_m2: minArea,
+        tags: [...cs.enabled],
+        models: buildModels(),
+        allow_cloud: allowCloud,
       });
     },
     onSuccess: (r) => setResult(r),
@@ -238,7 +256,15 @@ export default function DetectionPage() {
             onToggle={cs.toggle}
             onToggleCategory={cs.toggleCategory}
             onReset={cs.reset}
+            catalog={catalog}
+            modelByCategory={modelByCategory}
+            onModel={(cat, name) => setModelByCategory((m) => ({ ...m, [cat]: name }))}
           />
+
+          <label className="flex items-center gap-2 text-[11px]" style={{ color: "var(--muted)" }}>
+            <input type="checkbox" checked={allowCloud} onChange={(e) => setAllowCloud(e.target.checked)} className="accent-[var(--accent)]" />
+            {t("model.allowCloud")}
+          </label>
 
           <button className="btn w-full" disabled={!before || !after || run.isPending} onClick={() => run.mutate()}>
             {run.isPending ? t("detect.running") : t("detect.run")}
@@ -268,6 +294,18 @@ export default function DetectionPage() {
                     <span className="telemetry">{km2(v)} km²</span>
                   </div>
                 ))}
+              {result.provenance && Object.keys(result.provenance).length > 0 && (
+                <>
+                  <div className="label mt-3">{t("model.provenance")}</div>
+                  {Object.entries(result.provenance).map(([tag, backend]) => (
+                    <div key={tag} className="flex justify-between text-[11px]">
+                      <span style={{ color: "var(--muted)" }}>{tag === "*" ? "—" : clsLabel(tag)}</span>
+                      <span className="telemetry">{backend}</span>
+                    </div>
+                  ))}
+                </>
+              )}
+
               {result.urban && (
                 <div className="mt-3 rounded-lg p-2.5" style={{ background: "var(--panel-2)" }}>
                   <div className="label mb-2">🏙 {t("urban.title")}</div>

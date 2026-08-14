@@ -78,6 +78,7 @@ export const api = {
   evaluateWatchArea: (id: string) =>
     request<EvalResult>(`/api/v1/watch-areas/${id}/evaluate`, { method: "POST" }),
 
+  models: () => request<{ models: ModelInfo[] }>("/api/v1/models"),
   analytics: () => request<Analytics>("/api/v1/analytics/summary"),
   detections: (watchArea?: string) =>
     request<GeoJSONFC>(`/api/v1/detections${watchArea ? `?watch_area=${watchArea}` : ""}`),
@@ -110,6 +111,17 @@ export type DetectResult = {
   features: GeoJSON.Feature[];
   stats: DetectStats;
   urban?: UrbanRollup | null;
+  provenance?: Record<string, string> | null;
+};
+export type ModelInfo = {
+  name: string;
+  title: string;
+  tags: string[];
+  paradigm: string;
+  runtime: "index" | "cpu" | "gpu" | "cloud";
+  rank: number;
+  available: boolean;
+  reason: string;
 };
 
 // Tile URL for a STAC item (titiler-pgstac via proxy). Token can't ride tile

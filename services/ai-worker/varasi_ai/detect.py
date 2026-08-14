@@ -1,19 +1,19 @@
-"""Orchestrate a change-detection run: read -> algorithm -> mask -> polygons."""
+"""Orchestrate a change-detection run: read → route to model backend(s) → fuse."""
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Optional
 
-import numpy as np
-from rasterio.features import rasterize
-from shapely.geometry import mapping, shape
+from shapely.geometry import shape
 
-from .algorithms import get_algorithm
-from .classify import classify
 from .config import Settings
+from .models import RunParams, route_and_run
+from .models.router import CATEGORY_TAGS
 from .reader import affine_for, read_pair
 from .schemas import DetectionStats, DetectRequest, DetectResponse
-from .urban import classify_urban, urban_rollup
-from .vectorize import geodesic_area_m2, polygonize
+from .urban import urban_rollup
+from .vectorize import geodesic_area_m2
+
+_CONSTRUCTION = set(CATEGORY_TAGS["construction"])
 
 
 def _aoi_bbox(req: DetectRequest, cfg: Settings) -> tuple[float, float, float, float]:
@@ -29,56 +29,36 @@ def run_detection(req: DetectRequest, cfg: Optional[Settings] = None) -> DetectR
     pair = read_pair(req.before, req.after, bbox, cfg)
     transform = affine_for(pair)
 
-    algo = get_algorithm(req.algorithm)
-    magnitude = algo.run(pair.before, pair.after)  # (H,W) [0,1]
-    mask = magnitude >= req.threshold
+    params = RunParams(
+        threshold=req.threshold, min_area_m2=req.min_area_m2,
+        allow_cloud=req.allow_cloud, tags=req.tags, prompt=req.prompt,
+        extra={"algorithm": req.algorithm},
+    )
+    features, provenance = route_and_run(
+        pair, transform, tags=req.tags, models=req.models,
+        params=params, classifier=req.classifier,
+    )
 
-    urban_mode = req.classifier == "urban"
-    features: list[dict[str, Any]] = []
+    # Stamp acquisition dates; aggregate stats.
     class_area: dict[str, float] = {}
     changed_area = 0.0
+    for f in features:
+        p = f["properties"]
+        p.setdefault("before_datetime", req.before.datetime)
+        p.setdefault("after_datetime", req.after.datetime)
+        a = float(p.get("area_m2", 0.0))
+        changed_area += a
+        c = p.get("change_class", "unknown")
+        class_area[c] = class_area.get(c, 0.0) + a
 
-    for poly in polygonize(mask, transform, req.min_area_m2):
-        # Rasterize this polygon back to the window grid to sample stats.
-        pmask = rasterize(
-            [(mapping(poly), 1)], out_shape=(pair.height, pair.width),
-            transform=transform, fill=0, dtype="uint8",
-        ).astype(bool)
-        if not pmask.any():
-            continue
-        before_mean = pair.before[:, pmask].mean(axis=1)
-        after_mean = pair.after[:, pmask].mean(axis=1)
-        conf_mag = float(magnitude[pmask].mean())
-        extra: dict[str, Any] = {}
-        if urban_mode:
-            label, cls_conf, extra = classify_urban(before_mean, after_mean)
-        else:
-            label, cls_conf = classify(before_mean, after_mean)
-        area = geodesic_area_m2(poly)
-        changed_area += area
-        class_area[label] = class_area.get(label, 0.0) + area
-
-        props = {
-            "change_class": label,
-            "confidence": round((conf_mag + cls_conf) / 2, 3),
-            "magnitude": round(conf_mag, 3),
-            "area_m2": round(area, 1),
-            "algorithm": req.algorithm,
-            "classifier": req.classifier,
-            "before_datetime": req.before.datetime,
-            "after_datetime": req.after.datetime,
-        }
-        props.update(extra)
-        features.append({"type": "Feature", "geometry": mapping(poly), "properties": props})
-
-    valid_px = int(np.count_nonzero(algo._valid_mask(pair.before, pair.after)))
-    changed_px = int(np.count_nonzero(mask))
+    aoi_area = geodesic_area_m2(shape(req.aoi)) if req.aoi else 0.0
     stats = DetectionStats(
         changed_area_m2=round(changed_area, 1),
-        changed_fraction=round(changed_px / valid_px, 4) if valid_px else 0.0,
+        changed_fraction=round(changed_area / aoi_area, 4) if aoi_area else 0.0,
         polygon_count=len(features),
         algorithm=req.algorithm,
         class_breakdown={k: round(v, 1) for k, v in class_area.items()},
     )
-    urban = urban_rollup(features) if urban_mode else None
-    return DetectResponse(features=features, stats=stats, urban=urban)
+    urban_present = req.classifier == "urban" or any(c in _CONSTRUCTION for c in class_area)
+    urban = urban_rollup(features) if urban_present else None
+    return DetectResponse(features=features, stats=stats, urban=urban, provenance=provenance)

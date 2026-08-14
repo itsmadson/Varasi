@@ -20,6 +20,7 @@ type watchAreaReq struct {
 	AlertClasses []string        `json:"alert_classes"`
 	Cadence      string          `json:"cadence"`
 	Classifier   string          `json:"classifier"`
+	Models       json.RawMessage `json:"models"`
 }
 
 // createWatchArea stores an AOI (as MultiPolygon/4326) that will trigger CD.
@@ -51,14 +52,17 @@ func (s *Server) createWatchArea(w http.ResponseWriter, r *http.Request) {
 	if req.Classifier == "" {
 		req.Classifier = "standard"
 	}
+	if len(req.Models) == 0 {
+		req.Models = json.RawMessage(`{}`)
+	}
 	var id uuid.UUID
 	err := s.db.Pool.QueryRow(r.Context(),
-		`INSERT INTO varasi.watch_areas(org_id,project_id,name,geom,tags,priority,threshold,notify,max_cloud,alert_classes,cadence,classifier)
-		 VALUES($1,$2,$3, ST_Multi(ST_SetSRID(ST_GeomFromGeoJSON($4),4326)), $5,$6,$7,$8,$9,$10,$11,$12)
+		`INSERT INTO varasi.watch_areas(org_id,project_id,name,geom,tags,priority,threshold,notify,max_cloud,alert_classes,cadence,classifier,models)
+		 VALUES($1,$2,$3, ST_Multi(ST_SetSRID(ST_GeomFromGeoJSON($4),4326)), $5,$6,$7,$8,$9,$10,$11,$12,$13)
 		 RETURNING id`,
 		c.OrgID, req.ProjectID, req.Name, string(req.Geometry),
 		req.Tags, req.Priority, req.Threshold, req.Notify,
-		req.MaxCloud, req.AlertClasses, req.Cadence, req.Classifier,
+		req.MaxCloud, req.AlertClasses, req.Cadence, req.Classifier, req.Models,
 	).Scan(&id)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, "invalid geometry: "+err.Error())

@@ -130,6 +130,22 @@ func (s *Server) detectAndPersist(ctx context.Context, orgID, jobID uuid.UUID, w
 	}, nil
 }
 
+// listModels proxies the ai-worker model catalog (backends, tags, runtime,
+// availability) so the UI can offer a model picker per category.
+func (s *Server) listModels(w http.ResponseWriter, r *http.Request) {
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get(s.cfg.AIWorkerURL + "/models")
+	if err != nil {
+		writeErr(w, http.StatusBadGateway, "ai-worker unreachable")
+		return
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(resp.StatusCode)
+	_, _ = w.Write(body)
+}
+
 // runDetection is the manual change-detection endpoint.
 func (s *Server) runDetection(w http.ResponseWriter, r *http.Request) {
 	c := claimsFrom(r.Context())
