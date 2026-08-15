@@ -1,0 +1,18 @@
+# ML overlay: run the ai-worker with the CPU deep-learning tier (DeepForest).
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.ml.yml up -d ai-worker
+# The default (docker-compose.yml alone) stays lean — index + heuristic only.
+services:
+  ai-worker:
+    build:
+      context: ./services/ai-worker
+      dockerfile: Dockerfile.ml
+    image: varasi-ai-worker:ml
+    # DeepForest inference is CPU-heavy; give it room and mount model weights.
+    environment:
+      MODEL_WEIGHTS_DIR: /models
+    volumes:
+      - ai_models:/models
+
+volumes:
+  ai_models:

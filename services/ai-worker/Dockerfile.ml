@@ -18,7 +18,8 @@ RUN pip install .
 # at first use). Kept out of the base image to avoid bloating GPU-less deploys.
 RUN pip install --extra-index-url https://download.pytorch.org/whl/cpu \
       "torch==2.3.1" "torchvision==0.18.1" && \
-    pip install "deepforest==1.4.1"
+    pip install "deepforest==1.4.1" && \
+    pip install "albumentations==1.3.1"   # deepforest 1.4.1 needs albumentations.functional (removed in ≥1.4)
 
 # Optional mount point for GPU/segment model checkpoints.
 VOLUME ["/models"]
