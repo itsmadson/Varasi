@@ -6,6 +6,7 @@ from typing import Optional
 
 from .adapters import ADAPTERS
 from .base import ModelBackend
+from .deepforest_backend import DeepForestBackend
 from .heuristic_backend import HeuristicBackend
 from .index_backend import VegetationIndexBackend, WaterIndexBackend
 
@@ -14,6 +15,7 @@ BACKENDS: list[ModelBackend] = [
     HeuristicBackend(),
     VegetationIndexBackend(),
     WaterIndexBackend(),
+    DeepForestBackend(),
     *ADAPTERS,
 ]
 _BY_NAME = {b.name: b for b in BACKENDS}

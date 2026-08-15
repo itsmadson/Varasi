@@ -54,6 +54,7 @@ export default function DetectionPage() {
 
   const modelsQ = useQuery({ queryKey: ["models"], queryFn: api.models });
   const catalog = modelsQ.data?.models ?? [];
+  const compliance = useQuery({ queryKey: ["compliance"], queryFn: api.permitCompliance });
   const [modelByCategory, setModelByCategory] = useState<Record<string, string>>({});
   const [allowCloud, setAllowCloud] = useState(false);
 
@@ -103,7 +104,10 @@ export default function DetectionPage() {
         allow_cloud: allowCloud,
       });
     },
-    onSuccess: (r) => setResult(r),
+    onSuccess: (r) => {
+      setResult(r);
+      compliance.refetch();
+    },
   });
 
   const detections: GeoJSONFC | undefined = useMemo(
@@ -294,6 +298,24 @@ export default function DetectionPage() {
                     <span className="telemetry">{km2(v)} km²</span>
                   </div>
                 ))}
+              {compliance.data && compliance.data.permits_total > 0 && (
+                <div className="mt-3 rounded-lg p-2.5" style={{ background: "var(--panel-2)" }}>
+                  <div className="label mb-1.5">{t("permits.compliance")}</div>
+                  <div className="flex justify-between text-[11px]">
+                    <span style={{ color: "var(--danger)" }}>{t("permits.unpermitted")}</span>
+                    <span className="telemetry" style={{ color: "var(--danger)" }}>{compliance.data.unpermitted_count}</span>
+                  </div>
+                  <div className="flex justify-between text-[11px]">
+                    <span style={{ color: "var(--warn)" }}>{t("permits.noStart")}</span>
+                    <span className="telemetry">{compliance.data.no_start_count}</span>
+                  </div>
+                  <div className="flex justify-between text-[11px]">
+                    <span style={{ color: "var(--muted)" }}>{t("permits.permitted")}</span>
+                    <span className="telemetry">{compliance.data.permitted_count}</span>
+                  </div>
+                </div>
+              )}
+
               {result.provenance && Object.keys(result.provenance).length > 0 && (
                 <>
                   <div className="label mt-3">{t("model.provenance")}</div>

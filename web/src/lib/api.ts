@@ -79,6 +79,14 @@ export const api = {
     request<EvalResult>(`/api/v1/watch-areas/${id}/evaluate`, { method: "POST" }),
 
   models: () => request<{ models: ModelInfo[] }>("/api/v1/models"),
+  permits: () => request<GeoJSONFC>("/api/v1/permits"),
+  createPermits: (geojson: unknown) =>
+    request<{ inserted: number; received: number }>("/api/v1/permits", {
+      method: "POST",
+      body: JSON.stringify(geojson),
+    }),
+  deletePermit: (id: string) => request<void>(`/api/v1/permits/${id}`, { method: "DELETE" }),
+  permitCompliance: () => request<Compliance>("/api/v1/permits/compliance"),
   analytics: () => request<Analytics>("/api/v1/analytics/summary"),
   detections: (watchArea?: string) =>
     request<GeoJSONFC>(`/api/v1/detections${watchArea ? `?watch_area=${watchArea}` : ""}`),
@@ -190,6 +198,14 @@ export type Analytics = {
   totals: { detections: number; changed_area_m2: number; watch_areas: number; open_alerts: number; scenes: number };
   by_class: { class: string; count: number; area_m2: number }[];
   series: { month: string; count: number; area_m2: number }[];
+};
+export type Compliance = {
+  permits_total: number;
+  permitted_count: number;
+  unpermitted_count: number;
+  no_start_count: number;
+  permitted_area_m2: number;
+  unpermitted_area_m2: number;
 };
 export type Collection = { id: string; title?: string; description?: string };
 export type StacItem = {

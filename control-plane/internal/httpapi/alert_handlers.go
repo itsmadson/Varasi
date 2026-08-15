@@ -159,15 +159,15 @@ func (s *Server) alertDetail(w http.ResponseWriter, r *http.Request) {
 	var totalArea float64
 	if jobID != nil {
 		rows, _ := s.db.Pool.Query(ctx,
-			`SELECT change_class,confidence,area_m2,ST_AsGeoJSON(geom)
+			`SELECT change_class,confidence,area_m2,permit_status,ST_AsGeoJSON(geom)
 			 FROM varasi.detections WHERE job_id=$1 AND org_id=$2`, jobID, c.OrgID)
 		if rows != nil {
 			defer rows.Close()
 			for rows.Next() {
-				var cls *string
+				var cls, permitStatus *string
 				var conf, area *float64
 				var g string
-				if rows.Scan(&cls, &conf, &area, &g) != nil {
+				if rows.Scan(&cls, &conf, &area, &permitStatus, &g) != nil {
 					continue
 				}
 				k := "unknown"
@@ -182,7 +182,7 @@ func (s *Server) alertDetail(w http.ResponseWriter, r *http.Request) {
 				totalArea += a
 				features = append(features, map[string]any{
 					"type": "Feature", "geometry": json.RawMessage(g),
-					"properties": map[string]any{"change_class": cls, "confidence": conf, "area_m2": area},
+					"properties": map[string]any{"change_class": cls, "confidence": conf, "area_m2": area, "permit_status": permitStatus},
 				})
 			}
 		}

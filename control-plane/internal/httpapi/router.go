@@ -69,6 +69,11 @@ func (s *Server) Router() http.Handler {
 		r.With(requireRole("editor")).Post("/detections/run", s.runDetection)
 		r.Get("/models", s.listModels)
 
+		r.Get("/permits", s.listPermits)
+		r.Get("/permits/compliance", s.permitCompliance)
+		r.With(requireRole("editor")).Post("/permits", s.createPermits)
+		r.With(requireRole("editor")).Delete("/permits/{id}", s.deletePermit)
+
 		r.Get("/analytics/summary", s.analyticsSummary)
 
 		r.With(requireRole("editor")).Post("/ingest", s.ingestRaster)

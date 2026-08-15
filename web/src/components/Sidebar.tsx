@@ -13,6 +13,7 @@ const items: Item[] = [
   { href: "/library", key: "nav.library", icon: "library" },
   { href: "/detection", key: "nav.detection", icon: "detection" },
   { href: "/watch-areas", key: "nav.watchAreas", icon: "watch" },
+  { href: "/permits", key: "nav.permits", icon: "permits" },
   { href: "/alerts", key: "nav.alerts", icon: "alerts" },
   { href: "/analytics", key: "nav.analytics", icon: "analytics" },
   { href: "/jobs", key: "nav.jobs", icon: "jobs" },

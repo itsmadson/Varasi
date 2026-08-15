@@ -129,3 +129,18 @@ CPU or index tier. Data-egress policy (org setting) hides cloud backends when of
 
 Each phase = new adapter files behind the same `ModelBackend` interface; no
 router changes.
+
+## 8. Activating the CPU ML tier (DeepForest)
+
+The default `ai-worker` image is lean (index + heuristic only). To run the CPU
+deep-learning tier build the ML variant:
+
+```
+docker build -f services/ai-worker/Dockerfile.ml -t varasi-ai-worker:ml services/ai-worker
+# then run that image in place of varasi-ai-worker
+```
+
+It adds CPU `torch`/`torchvision` + `deepforest` (~1.5 GB). `GET /models` then
+reports `deepforest_tree` as `available: true`; the router uses it for the
+`vegetation_*` tags on high-res RGB, falling back to the vegetation index on coarse
+imagery. GPU/segment checkpoints mount at `/models` (`MODEL_WEIGHTS_DIR`).

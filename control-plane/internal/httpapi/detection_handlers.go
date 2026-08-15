@@ -118,6 +118,17 @@ func (s *Server) detectAndPersist(ctx context.Context, orgID, jobID uuid.UUID, w
 		`UPDATE varasi.jobs SET status='succeeded',progress=1,result=$2,updated_at=now() WHERE id=$1`,
 		jobID, envelope.Stats)
 
+	// Permit compliance: flag construction-class detections as permitted (inside an
+	// issued permit) or unpermitted (outside every permit → ساخت غیرمجاز).
+	constructionClasses := []string{"excavation", "earthworks_fill", "new_construction",
+		"building_demolition", "paving", "soil_sealing", "urban_growth"}
+	_, _ = s.db.Pool.Exec(ctx,
+		`UPDATE varasi.detections d SET permit_status =
+		   CASE WHEN EXISTS(SELECT 1 FROM varasi.permits p
+		                    WHERE p.org_id=d.org_id AND ST_Intersects(d.geom, p.geom))
+		        THEN 'permitted' ELSE 'unpermitted' END
+		 WHERE d.job_id=$1 AND d.change_class = ANY($2)`, jobID, constructionClasses)
+
 	return detectResult{
 		Raw:          body,
 		ChangedArea:  fc.Stats.ChangedAreaM2,
@@ -196,7 +207,7 @@ func (s *Server) listDetections(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	rows, err := s.db.Pool.Query(r.Context(),
-		`SELECT id,job_id,watch_area_id,change_class,confidence,area_m2,before_date,after_date,created_at,ST_AsGeoJSON(geom)
+		`SELECT id,job_id,watch_area_id,change_class,confidence,area_m2,before_date,after_date,created_at,permit_status,ST_AsGeoJSON(geom)
 		 FROM varasi.detections WHERE `+where+` ORDER BY created_at DESC LIMIT 2000`, args...)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "query")
@@ -207,11 +218,11 @@ func (s *Server) listDetections(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var id uuid.UUID
 		var jobID, waID *uuid.UUID
-		var cls *string
+		var cls, permitStatus *string
 		var conf, area *float64
 		var bd, ad, created any
 		var geojson string
-		if err := rows.Scan(&id, &jobID, &waID, &cls, &conf, &area, &bd, &ad, &created, &geojson); err != nil {
+		if err := rows.Scan(&id, &jobID, &waID, &cls, &conf, &area, &bd, &ad, &created, &permitStatus, &geojson); err != nil {
 			writeErr(w, http.StatusInternalServerError, "scan")
 			return
 		}
@@ -222,7 +233,7 @@ func (s *Server) listDetections(w http.ResponseWriter, r *http.Request) {
 			"properties": map[string]any{
 				"change_class": cls, "confidence": conf, "area_m2": area,
 				"before_date": bd, "after_date": ad, "created_at": created,
-				"job_id": jobID, "watch_area_id": waID,
+				"job_id": jobID, "watch_area_id": waID, "permit_status": permitStatus,
 			},
 		})
 	}

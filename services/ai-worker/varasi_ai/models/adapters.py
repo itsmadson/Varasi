@@ -85,17 +85,6 @@ class SAMGeoBuildingBackend(_Stub):
     _requires_weights = ("sam2_hiera_large.pt",)
 
 
-class DeepForestTreeBackend(_Stub):
-    name = "deepforest_tree"
-    title = "DeepForest · trees (crowns)"
-    tags = ["vegetation_gain", "vegetation_loss", "tree"]
-    paradigm = "segment-diff"
-    runtime = "cpu"
-    rank = 70
-    _requires_mods = ("deepforest",)
-    _requires_weights = ()  # deepforest downloads its own release weights
-
-
 class RoadExtractBackend(_Stub):
     name = "dlinknet_road"
     title = "D-LinkNet · roads"
@@ -134,6 +123,5 @@ class LandCoverBackend(_Stub):
 
 ADAPTERS: list[ModelBackend] = [
     ChangeFormerBackend(), TinyCDBackend(), SAMGeoBuildingBackend(),
-    DeepForestTreeBackend(), RoadExtractBackend(), GroundedSAMBackend(),
-    LandCoverBackend(),
+    RoadExtractBackend(), GroundedSAMBackend(), LandCoverBackend(),
 ]
