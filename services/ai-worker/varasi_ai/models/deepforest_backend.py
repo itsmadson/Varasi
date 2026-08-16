@@ -54,7 +54,9 @@ class DeepForestBackend(ModelBackend):
     tags = ["vegetation_gain", "vegetation_loss"]
     paradigm = "segment-diff"
     runtime = "cpu"
-    rank = 72
+    # Opt-in: below the index backend so auto-routing stays fast on coarse imagery.
+    # DeepForest needs sub-metre RGB; the user selects it explicitly for high-res.
+    rank = 20
 
     def available(self) -> bool:
         return importlib.util.find_spec("deepforest") is not None

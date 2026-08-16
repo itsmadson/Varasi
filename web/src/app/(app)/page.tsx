@@ -25,6 +25,7 @@ export default function DashboardPage() {
   const alerts = useQuery({ queryKey: ["alerts"], queryFn: () => api.alerts(), refetchInterval: 10000 });
   const analytics = useQuery({ queryKey: ["analytics"], queryFn: api.analytics });
   const models = useQuery({ queryKey: ["models"], queryFn: api.models });
+  const compliance = useQuery({ queryKey: ["compliance"], queryFn: api.permitCompliance });
 
   const list = alerts.data?.alerts ?? [];
   const open = list.filter((a) => !a.acknowledged);
@@ -159,8 +160,8 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Lower bento: charts + model zoo */}
-      <div className="grid grid-cols-1 gap-4 px-6 py-4 lg:grid-cols-3">
+      {/* Lower bento: charts + model zoo + compliance */}
+      <div className="grid grid-cols-1 gap-4 px-6 py-4 lg:grid-cols-4">
         {/* Change over time */}
         <div className="panel p-4">
           <div className="label mb-3">{t("dash.overTime")}</div>
@@ -235,7 +236,40 @@ export default function DashboardPage() {
             ))}
           </div>
         </div>
+
+        {/* Permit compliance */}
+        <div className="panel p-4">
+          <div className="label mb-3">{t("permits.compliance")}</div>
+          {compliance.data && compliance.data.permits_total > 0 ? (
+            <div className="space-y-2">
+              <CompRow label={t("permits.unpermitted")} value={compliance.data.unpermitted_count} color="var(--danger)" />
+              <CompRow label={t("permits.noStart")} value={compliance.data.no_start_count} color="var(--warn)" />
+              <CompRow label={t("permits.permitted")} value={compliance.data.permitted_count} color="var(--accent)" />
+              <button className="chip mt-1 w-full" onClick={() => router.push("/permits")}>
+                {t("dash.viewAll")}
+              </button>
+            </div>
+          ) : (
+            <button className="btn-ghost text-xs" onClick={() => router.push("/permits")}>
+              {t("permits.empty")}
+            </button>
+          )}
+        </div>
       </div>
+    </div>
+  );
+}
+
+function CompRow({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <div className="flex items-center justify-between text-[11px]">
+      <span className="flex items-center gap-1.5" style={{ color: "var(--muted)" }}>
+        <span className="h-2 w-2 rounded-full" style={{ background: color }} />
+        {label}
+      </span>
+      <span className="telemetry" style={{ color }}>
+        {value}
+      </span>
     </div>
   );
 }

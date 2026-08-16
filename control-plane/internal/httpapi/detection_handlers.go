@@ -66,6 +66,7 @@ func (s *Server) detectAndPersist(ctx context.Context, orgID, jobID uuid.UUID, w
 				AreaM2      float64 `json:"area_m2"`
 				BeforeDate  *string `json:"before_datetime"`
 				AfterDate   *string `json:"after_datetime"`
+				Model       *string `json:"model"`
 			} `json:"properties"`
 		} `json:"features"`
 		Stats struct {
@@ -91,13 +92,13 @@ func (s *Server) detectAndPersist(ctx context.Context, orgID, jobID uuid.UUID, w
 		var detID uuid.UUID
 		err := s.db.Pool.QueryRow(ctx,
 			`INSERT INTO varasi.detections
-			   (org_id,job_id,watch_area_id,geom,change_class,confidence,area_m2,before_date,after_date)
+			   (org_id,job_id,watch_area_id,geom,change_class,confidence,area_m2,before_date,after_date,model)
 			 VALUES($1,$2,$3, ST_Multi(ST_SetSRID(ST_GeomFromGeoJSON($4),4326)), $5,$6,$7,
-			   $8::timestamptz, $9::timestamptz)
+			   $8::timestamptz, $9::timestamptz, $10)
 			 RETURNING id`,
 			orgID, jobID, waID, string(f.Geometry),
 			f.Properties.ChangeClass, f.Properties.Confidence, f.Properties.AreaM2,
-			f.Properties.BeforeDate, f.Properties.AfterDate,
+			f.Properties.BeforeDate, f.Properties.AfterDate, f.Properties.Model,
 		).Scan(&detID)
 		if err != nil {
 			continue
@@ -207,7 +208,7 @@ func (s *Server) listDetections(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	rows, err := s.db.Pool.Query(r.Context(),
-		`SELECT id,job_id,watch_area_id,change_class,confidence,area_m2,before_date,after_date,created_at,permit_status,ST_AsGeoJSON(geom)
+		`SELECT id,job_id,watch_area_id,change_class,confidence,area_m2,before_date,after_date,created_at,permit_status,model,ST_AsGeoJSON(geom)
 		 FROM varasi.detections WHERE `+where+` ORDER BY created_at DESC LIMIT 2000`, args...)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "query")
@@ -218,11 +219,11 @@ func (s *Server) listDetections(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var id uuid.UUID
 		var jobID, waID *uuid.UUID
-		var cls, permitStatus *string
+		var cls, permitStatus, model *string
 		var conf, area *float64
 		var bd, ad, created any
 		var geojson string
-		if err := rows.Scan(&id, &jobID, &waID, &cls, &conf, &area, &bd, &ad, &created, &permitStatus, &geojson); err != nil {
+		if err := rows.Scan(&id, &jobID, &waID, &cls, &conf, &area, &bd, &ad, &created, &permitStatus, &model, &geojson); err != nil {
 			writeErr(w, http.StatusInternalServerError, "scan")
 			return
 		}
@@ -233,7 +234,7 @@ func (s *Server) listDetections(w http.ResponseWriter, r *http.Request) {
 			"properties": map[string]any{
 				"change_class": cls, "confidence": conf, "area_m2": area,
 				"before_date": bd, "after_date": ad, "created_at": created,
-				"job_id": jobID, "watch_area_id": waID, "permit_status": permitStatus,
+				"job_id": jobID, "watch_area_id": waID, "permit_status": permitStatus, "model": model,
 			},
 		})
 	}

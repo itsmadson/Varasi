@@ -4,7 +4,7 @@ import maplibregl from "maplibre-gl";
 import { useEffect, useRef, useState } from "react";
 import { getToken } from "@/lib/api";
 import type { GeoJSONFC } from "@/lib/api";
-import { classMatchExpr } from "@/lib/changeClasses";
+import { classMatchExpr, detectionPopup } from "@/lib/changeClasses";
 
 type Item = { collection: string; id: string };
 
@@ -97,6 +97,12 @@ export function SwipeMap({
       afterMap.addLayer({ id: "det-line", type: "line", source: "det", paint: { "line-color": CLASS_COLORS as any, "line-width": 1.6 } });
       const b = boundsOf(detections);
       if (b) afterMap.fitBounds(b, { padding: 40, duration: 0 });
+      afterMap.on("click", "det-fill", (e) => {
+        const p = (e.features?.[0]?.properties ?? {}) as Record<string, unknown>;
+        new maplibregl.Popup({ closeButton: false }).setLngLat(e.lngLat).setHTML(detectionPopup(p)).addTo(afterMap);
+      });
+      afterMap.on("mouseenter", "det-fill", () => (afterMap.getCanvas().style.cursor = "pointer"));
+      afterMap.on("mouseleave", "det-fill", () => (afterMap.getCanvas().style.cursor = ""));
     });
     beforeMap.on("load", () => {
       beforeMap.resize();

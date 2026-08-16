@@ -4,7 +4,7 @@ import maplibregl from "maplibre-gl";
 import { useEffect, useRef } from "react";
 import { getToken, itemTileJson } from "@/lib/api";
 import type { GeoJSONFC } from "@/lib/api";
-import { classMatchExpr } from "@/lib/changeClasses";
+import { classMatchExpr, detectionPopup } from "@/lib/changeClasses";
 
 type Basemap = "dark" | "light" | "satellite";
 
@@ -86,6 +86,13 @@ export function MapView({
       syncRaster(m, rasterItem, opacity);
       syncDetections(m, detections, CLASS_COLORS);
     });
+    // Click a change polygon → show its class, accuracy (confidence) and model.
+    m.on("click", "detections-fill", (e) => {
+      const p = (e.features?.[0]?.properties ?? {}) as Record<string, unknown>;
+      new maplibregl.Popup({ closeButton: false }).setLngLat(e.lngLat).setHTML(detectionPopup(p)).addTo(m);
+    });
+    m.on("mouseenter", "detections-fill", () => (m.getCanvas().style.cursor = "pointer"));
+    m.on("mouseleave", "detections-fill", () => (m.getCanvas().style.cursor = ""));
     if (captureRef) {
       captureRef.current = () => {
         try {

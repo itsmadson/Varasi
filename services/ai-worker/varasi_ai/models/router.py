@@ -32,6 +32,9 @@ def route_and_run(pair, transform, *, tags, models, params: RunParams, classifie
         params.extra["classifier"] = classifier
         from .registry import FALLBACK
         feats = FALLBACK.run(pair, transform, params)
+        for f in feats:
+            f["properties"]["model"] = FALLBACK.name
+            f["properties"]["model_title"] = FALLBACK.title
         return feats, {"*": FALLBACK.name}
 
     # Resolve a backend per tag, then group tags by backend so each runs once.
@@ -60,8 +63,10 @@ def route_and_run(pair, transform, *, tags, models, params: RunParams, classifie
             out = FALLBACK.run(pair, transform, fp)
             for t in tagset:
                 provenance[t] = FALLBACK.name + " (fallback)"
-        # Keep only the tags routed to this backend.
+        # Keep only the tags routed to this backend; stamp provenance per polygon.
         for f in out:
             if f["properties"].get("change_class") in tagset:
+                f["properties"]["model"] = backend.name
+                f["properties"]["model_title"] = backend.title
                 features.append(f)
     return features, provenance
