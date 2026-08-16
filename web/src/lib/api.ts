@@ -79,6 +79,12 @@ export const api = {
     request<EvalResult>(`/api/v1/watch-areas/${id}/evaluate`, { method: "POST" }),
 
   models: () => request<{ models: ModelInfo[] }>("/api/v1/models"),
+  apiKeys: () => request<{ keys: ApiKey[] }>("/api/v1/api-keys"),
+  createApiKey: (name: string) =>
+    request<{ id: string; key: string; name: string }>("/api/v1/api-keys", { method: "POST", body: JSON.stringify({ name }) }),
+  revokeApiKey: (id: string) => request<void>(`/api/v1/api-keys/${id}`, { method: "DELETE" }),
+  members: () => request<{ members: Member[] }>("/api/v1/members"),
+  audit: () => request<{ events: AuditEvent[] }>("/api/v1/audit"),
   permits: () => request<GeoJSONFC>("/api/v1/permits"),
   createPermits: (geojson: unknown) =>
     request<{ inserted: number; received: number }>("/api/v1/permits", {
@@ -207,6 +213,9 @@ export type Compliance = {
   permitted_area_m2: number;
   unpermitted_area_m2: number;
 };
+export type ApiKey = { id: string; name: string; prefix: string; revoked: boolean; last_used_at?: string | null; created_at: string };
+export type Member = { email: string; full_name: string; role: string; created_at: string };
+export type AuditEvent = { action: string; target: string; user: string; created_at: string };
 export type Collection = { id: string; title?: string; description?: string };
 export type StacItem = {
   id: string;

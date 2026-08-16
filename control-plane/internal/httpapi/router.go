@@ -51,7 +51,11 @@ func (s *Server) Router() http.Handler {
 		r.Get("/projects", s.listProjects)
 		r.With(requireRole("editor")).Post("/projects", s.createProject)
 
+		r.Get("/api-keys", s.listAPIKeys)
 		r.With(requireRole("admin")).Post("/api-keys", s.createAPIKey)
+		r.With(requireRole("admin")).Delete("/api-keys/{id}", s.revokeAPIKey)
+		r.Get("/members", s.listMembers)
+		r.Get("/audit", s.listAudit)
 
 		r.Get("/watch-areas", s.listWatchAreas)
 		r.With(requireRole("editor")).Post("/watch-areas", s.createWatchArea)

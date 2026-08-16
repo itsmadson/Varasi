@@ -11,6 +11,7 @@ import { useI18n } from "@/i18n/LocaleProvider";
 import type { MsgKey } from "@/i18n/dict";
 import { classBreakdown, downloadCSV, downloadGeoJSON, km2, nearestScene, printReport } from "@/lib/report";
 import { ClassStyleControl, useClassStyle } from "@/components/ClassStyleControl";
+import { useToast } from "@/components/Toast";
 import { CATEGORIES, needsUrban } from "@/lib/changeClasses";
 import type { GeoJSONFC } from "@/lib/api";
 
@@ -50,6 +51,7 @@ export default function DetectionPage() {
   const [report, setReport] = useState<ReportModel | null>(null);
 
   const cs = useClassStyle();
+  const toast = useToast();
   const capture = useRef<(() => string | null) | null>(null);
 
   const modelsQ = useQuery({ queryKey: ["models"], queryFn: api.models });
@@ -107,7 +109,9 @@ export default function DetectionPage() {
     onSuccess: (r) => {
       setResult(r);
       compliance.refetch();
+      toast(`${r.stats.polygon_count} · ${(r.stats.changed_area_m2 / 1e6).toFixed(2)} km²`);
     },
+    onError: (e) => toast((e as Error).message, "error"),
   });
 
   const detections: GeoJSONFC | undefined = useMemo(

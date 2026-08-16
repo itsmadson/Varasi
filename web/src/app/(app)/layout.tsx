@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
+import { CommandPalette } from "@/components/CommandPalette";
 import { useAuth } from "@/lib/auth";
 import { useI18n } from "@/i18n/LocaleProvider";
 
@@ -31,6 +32,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <Topbar />
         <main className="min-h-0 flex-1 overflow-auto">{children}</main>
       </div>
+      <CommandPalette />
     </div>
   );
 }

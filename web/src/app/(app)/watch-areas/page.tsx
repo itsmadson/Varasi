@@ -11,6 +11,7 @@ import { api, type EvalResult } from "@/lib/api";
 import { useI18n } from "@/i18n/LocaleProvider";
 import { ClassStyleControl, useClassStyle } from "@/components/ClassStyleControl";
 import { ALL_CLASSES, needsUrban } from "@/lib/changeClasses";
+import { useToast } from "@/components/Toast";
 
 const PRIORITY_COLOR = ["", "var(--danger)", "var(--warn)", "var(--accent)", "var(--muted)", "var(--muted)"];
 
@@ -18,6 +19,7 @@ export default function WatchAreasPage() {
   const { t } = useI18n();
   const qc = useQueryClient();
   const router = useRouter();
+  const toast = useToast();
   const [focus, setFocus] = useState<string | null>(null);
   const [evalMap, setEvalMap] = useState<Record<string, EvalResult>>({});
   const wa = useQuery({ queryKey: ["watch-areas"], queryFn: api.watchAreas });
@@ -59,6 +61,7 @@ export default function WatchAreasPage() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["watch-areas"] });
+      toast(t("action.save"));
       setOpen(false);
       setName("");
       setGeom(null);
