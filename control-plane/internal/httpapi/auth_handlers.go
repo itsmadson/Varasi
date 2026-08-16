@@ -150,18 +150,20 @@ func (s *Server) resolveAPIKey(ctx context.Context, full string) (*auth.Claims, 
 	prefix, secret := parts[1], parts[2]
 	var id, orgID uuid.UUID
 	var userID *uuid.UUID
-	var keyHash string
+	var keyHash, role string
 	var revoked bool
 	err := s.db.Pool.QueryRow(ctx,
-		`SELECT id,org_id,user_id,key_hash,revoked FROM varasi.api_keys WHERE prefix=$1`,
+		`SELECT id,org_id,user_id,key_hash,revoked,role FROM varasi.api_keys WHERE prefix=$1`,
 		prefix,
-	).Scan(&id, &orgID, &userID, &keyHash, &revoked)
+	).Scan(&id, &orgID, &userID, &keyHash, &revoked, &role)
 	if err != nil || revoked || !auth.CheckAPISecret(keyHash, secret) {
 		return nil, auth.ErrInvalidToken
 	}
 	_, _ = s.db.Pool.Exec(ctx, `UPDATE varasi.api_keys SET last_used_at=now() WHERE id=$1`, id)
 
-	role := "editor" // API keys act with editor rights by default
+	if role == "" {
+		role = "viewer"
+	}
 	uid := uuid.Nil
 	if userID != nil {
 		uid = *userID

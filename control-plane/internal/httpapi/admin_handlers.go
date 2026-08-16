@@ -11,7 +11,7 @@ import (
 func (s *Server) listAPIKeys(w http.ResponseWriter, r *http.Request) {
 	c := claimsFrom(r.Context())
 	rows, err := s.db.Pool.Query(r.Context(),
-		`SELECT id,name,prefix,revoked,last_used_at,created_at FROM varasi.api_keys
+		`SELECT id,name,prefix,revoked,role,last_used_at,created_at FROM varasi.api_keys
 		 WHERE org_id=$1 ORDER BY created_at DESC`, c.OrgID)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "query")
@@ -21,14 +21,14 @@ func (s *Server) listAPIKeys(w http.ResponseWriter, r *http.Request) {
 	keys := []map[string]any{}
 	for rows.Next() {
 		var id uuid.UUID
-		var name, prefix string
+		var name, prefix, role string
 		var revoked bool
 		var lastUsed, created any
-		if rows.Scan(&id, &name, &prefix, &revoked, &lastUsed, &created) != nil {
+		if rows.Scan(&id, &name, &prefix, &revoked, &role, &lastUsed, &created) != nil {
 			continue
 		}
 		keys = append(keys, map[string]any{
-			"id": id, "name": name, "prefix": prefix, "revoked": revoked,
+			"id": id, "name": name, "prefix": prefix, "revoked": revoked, "role": role,
 			"last_used_at": lastUsed, "created_at": created,
 		})
 	}

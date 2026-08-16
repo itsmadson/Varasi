@@ -104,10 +104,11 @@ function ApiKeys() {
   const qc = useQueryClient();
   const toast = useToast();
   const [name, setName] = useState("");
+  const [role, setRole] = useState("viewer");
   const [fresh, setFresh] = useState<string | null>(null);
   const keys = useQuery({ queryKey: ["api-keys"], queryFn: api.apiKeys });
   const create = useMutation({
-    mutationFn: () => api.createApiKey(name),
+    mutationFn: () => api.createApiKey(name, role),
     onSuccess: (r) => {
       setFresh(r.key);
       setName("");
@@ -128,8 +129,14 @@ function ApiKeys() {
         <div className="label">{t("set.newKey")}</div>
         <div className="flex gap-2">
           <input className="input" placeholder={t("set.keyName")} value={name} onChange={(e) => setName(e.target.value)} />
+          <select className="input" style={{ width: 120 }} value={role} onChange={(e) => setRole(e.target.value)}>
+            <option value="viewer">viewer</option>
+            <option value="editor">editor</option>
+            <option value="admin">admin</option>
+          </select>
           <button className="btn" disabled={!name || create.isPending} onClick={() => create.mutate()}>{t("set.create")}</button>
         </div>
+        <p className="telemetry text-[9px]" style={{ color: "var(--muted)" }}>{t("set.roleHint")}</p>
         {fresh && (
           <div className="rounded-lg border p-2.5" style={{ borderColor: "var(--accent)" }}>
             <div className="telemetry mb-1 text-[9px]" style={{ color: "var(--warn)" }}>{t("set.keyOnce")}</div>
@@ -150,6 +157,7 @@ function ApiKeys() {
             {keys.data!.keys.map((k) => (
               <div key={k.id} className="flex items-center gap-3 border-t py-2 text-xs first:border-t-0">
                 <span className="font-500">{k.name}</span>
+                <span className="chip !py-0 uppercase" style={{ color: "var(--accent)", borderColor: "var(--accent)" }}>{k.role}</span>
                 <code className="telemetry text-[10px]" style={{ color: "var(--muted)" }}>{k.prefix}…</code>
                 <span className="telemetry ms-auto text-[9px]" style={{ color: "var(--muted)" }}>
                   {t("set.lastUsed")}: {k.last_used_at ? String(k.last_used_at).slice(0, 10) : t("set.never")}

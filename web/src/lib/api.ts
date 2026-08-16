@@ -80,8 +80,8 @@ export const api = {
 
   models: () => request<{ models: ModelInfo[] }>("/api/v1/models"),
   apiKeys: () => request<{ keys: ApiKey[] }>("/api/v1/api-keys"),
-  createApiKey: (name: string) =>
-    request<{ id: string; key: string; name: string }>("/api/v1/api-keys", { method: "POST", body: JSON.stringify({ name }) }),
+  createApiKey: (name: string, role = "viewer") =>
+    request<{ id: string; key: string; name: string; role: string }>("/api/v1/api-keys", { method: "POST", body: JSON.stringify({ name, role }) }),
   revokeApiKey: (id: string) => request<void>(`/api/v1/api-keys/${id}`, { method: "DELETE" }),
   members: () => request<{ members: Member[] }>("/api/v1/members"),
   audit: () => request<{ events: AuditEvent[] }>("/api/v1/audit"),
@@ -213,7 +213,7 @@ export type Compliance = {
   permitted_area_m2: number;
   unpermitted_area_m2: number;
 };
-export type ApiKey = { id: string; name: string; prefix: string; revoked: boolean; last_used_at?: string | null; created_at: string };
+export type ApiKey = { id: string; name: string; prefix: string; revoked: boolean; role: string; last_used_at?: string | null; created_at: string };
 export type Member = { email: string; full_name: string; role: string; created_at: string };
 export type AuditEvent = { action: string; target: string; user: string; created_at: string };
 export type Collection = { id: string; title?: string; description?: string };

@@ -32,6 +32,7 @@ const groups: Group[] = [
     label: "nav.group.configure",
     items: [
       { href: "/projects", key: "nav.projects", icon: "projects" },
+      { href: "/developers", key: "nav.developers", icon: "developers" },
       { href: "/settings", key: "nav.settings", icon: "settings" },
     ],
   },

@@ -89,6 +89,7 @@ func (s *Server) createProject(w http.ResponseWriter, r *http.Request) {
 
 type apiKeyReq struct {
 	Name string `json:"name"`
+	Role string `json:"role"`
 }
 
 func (s *Server) createAPIKey(w http.ResponseWriter, r *http.Request) {
@@ -96,6 +97,15 @@ func (s *Server) createAPIKey(w http.ResponseWriter, r *http.Request) {
 	var req apiKeyReq
 	if err := decode(r, &req); err != nil || req.Name == "" {
 		writeErr(w, http.StatusBadRequest, "name required")
+		return
+	}
+	// A key can grant at most the creator's own role.
+	role := req.Role
+	if role == "" {
+		role = "viewer"
+	}
+	if roleRank[role] == 0 || roleRank[role] > roleRank[c.Role] {
+		writeErr(w, http.StatusBadRequest, "invalid or excessive role")
 		return
 	}
 	full, prefix, secret := auth.GenerateAPIKey()
@@ -107,9 +117,9 @@ func (s *Server) createAPIKey(w http.ResponseWriter, r *http.Request) {
 	uid := c.UserID
 	var id uuid.UUID
 	err = s.db.Pool.QueryRow(r.Context(),
-		`INSERT INTO varasi.api_keys(org_id,user_id,name,prefix,key_hash)
-		 VALUES($1,$2,$3,$4,$5) RETURNING id`,
-		c.OrgID, uid, req.Name, prefix, hash,
+		`INSERT INTO varasi.api_keys(org_id,user_id,name,prefix,key_hash,role)
+		 VALUES($1,$2,$3,$4,$5,$6) RETURNING id`,
+		c.OrgID, uid, req.Name, prefix, hash, role,
 	).Scan(&id)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "insert")
@@ -117,7 +127,7 @@ func (s *Server) createAPIKey(w http.ResponseWriter, r *http.Request) {
 	}
 	s.audit(r, "apikey.create", id.String())
 	// The full secret is shown exactly once.
-	writeJSON(w, http.StatusCreated, map[string]any{"id": id, "key": full, "name": req.Name})
+	writeJSON(w, http.StatusCreated, map[string]any{"id": id, "key": full, "name": req.Name, "role": role})
 }
 
 func (s *Server) audit(r *http.Request, action, target string) {
