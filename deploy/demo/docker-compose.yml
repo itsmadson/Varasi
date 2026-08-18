@@ -1,0 +1,119 @@
+# Varasi — demo-server compose. Prebuilt images from ghcr (no source build).
+# Only `web` and `control-plane` publish host ports (for the shared nginx);
+# everything else stays on the internal network. Data lives in named volumes.
+#
+#   cd /root/mithra && cp .env.example .env   # edit secrets
+#   docker login ghcr.io                       # if packages are private
+#   docker compose pull && docker compose up -d
+name: varasi
+
+x-pg-env: &pg-env
+  POSTGRES_USER: ${POSTGRES_USER:-postgres}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
+  POSTGRES_DB: ${POSTGRES_DB:-varasi}
+
+services:
+  database:
+    image: ghcr.io/stac-utils/pgstac:v0.9.5
+    environment: *pg-env
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-varasi}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set in .env}
+    volumes:
+      - miniodata:/data
+    restart: unless-stopped
+
+  stac:
+    image: ghcr.io/stac-utils/stac-fastapi-pgstac:5.0.2
+    environment:
+      <<: *pg-env
+      POSTGRES_HOST_READER: database
+      POSTGRES_HOST_WRITER: database
+      POSTGRES_PORT: 5432
+      APP_HOST: 0.0.0.0
+      APP_PORT: 8080
+    depends_on: { database: { condition: service_healthy } }
+    restart: unless-stopped
+
+  raster:
+    image: ghcr.io/stac-utils/titiler-pgstac:1.7.1
+    environment:
+      <<: *pg-env
+      POSTGRES_HOST: database
+      POSTGRES_PORT: 5432
+      PORT: 8082
+    depends_on: { database: { condition: service_healthy } }
+    restart: unless-stopped
+
+  vector:
+    image: ghcr.io/developmentseed/tipg:1.0.1
+    environment:
+      <<: *pg-env
+      POSTGRES_HOST: database
+      POSTGRES_PORT: 5432
+      TIPG_DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@database:5432/${POSTGRES_DB:-varasi}
+    depends_on: { database: { condition: service_healthy } }
+    restart: unless-stopped
+
+  control-plane:
+    image: ghcr.io/itsmadson/varasi-control-plane:latest
+    environment:
+      CONTROL_PORT: 8080
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@database:5432/${POSTGRES_DB:-varasi}?sslmode=disable
+      JWT_SECRET: ${JWT_SECRET:?set a long random secret in .env}
+      STAC_URL: http://stac:8080
+      RASTER_URL: http://raster:8082
+      VECTOR_URL: http://vector:8083
+      AI_WORKER_URL: http://ai-worker:8090
+      INGEST_URL: http://ingest-api:8095
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:?set in .env}
+      CORS_ORIGIN: ${WEB_ORIGIN:-*}
+    ports:
+      - "${CONTROL_PORT:-8282}:8080"      # nginx → /api /catalog /ws /docs
+    depends_on: { database: { condition: service_healthy } }
+    restart: unless-stopped
+
+  ai-worker:
+    image: ghcr.io/itsmadson/varasi-ai-worker:latest
+    environment:
+      VARASI_AI_STAC_URL: http://stac:8080
+      VARASI_AI_MAX_SIZE: 512
+    restart: unless-stopped
+
+  ingest-api:
+    image: ghcr.io/itsmadson/varasi-ingest-api:latest
+    environment:
+      VARASI_STAC_URL: http://stac:8080
+      VARASI_S3_ENDPOINT: http://minio:9000
+      VARASI_S3_ACCESS_KEY: ${MINIO_ROOT_USER:-varasi}
+      VARASI_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      VARASI_S3_BUCKET: ${MINIO_BUCKET:-varasi-derived}
+      VARASI_CONTROL_URL: http://control-plane:8080
+      VARASI_INTERNAL_TOKEN: ${INTERNAL_TOKEN}
+    depends_on: [minio, stac]
+    restart: unless-stopped
+
+  web:
+    image: ghcr.io/itsmadson/varasi-web:latest
+    environment:
+      CONTROL_PLANE_URL: http://control-plane:8080
+    ports:
+      - "${WEB_PORT:-9292}:3000"          # nginx → /
+    depends_on: [control-plane]
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  miniodata:
