@@ -9,6 +9,10 @@ A Raster Catalog + Analysis Engine — references imagery in external storage, d
 
 ---
 
+<p align="center">
+  <img width="100" height="100" alt="jamasp" src="https://github.com/user-attachments/assets/407b2b08-2495-4ee9-b22d-cff4bc0fafbf" />
+</p>
+
 ## What it is
 Continuously monitor large areas from satellite / aerial / drone imagery, automatically detect changes, classify them, and alert users. Open-source, cloud-native, multi-tenant.
 
