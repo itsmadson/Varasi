@@ -51,11 +51,8 @@ export default function LoginPage() {
 
       <div className="panel relative w-full max-w-sm p-7" style={{ background: "var(--panel)" }}>
         <div className="mb-6 flex items-center gap-3">
-          <div className="grid h-10 w-10 place-items-center rounded-md" style={{ background: "var(--accent)", color: "var(--bg)" }}>
-            <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M3 17l6-6 4 4 8-8" />
-            </svg>
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt="Varasi" className="h-11 w-11 rounded-md object-contain" />
           <div>
             <div className="text-lg font-700">{t("app.name")}</div>
             <div className="telemetry text-[9px]" style={{ color: "var(--muted)" }}>

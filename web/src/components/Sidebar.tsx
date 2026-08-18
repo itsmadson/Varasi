@@ -96,15 +96,6 @@ export function Sidebar() {
 }
 
 function LogoMark() {
-  return (
-    <div
-      className="grid h-9 w-9 place-items-center rounded-md"
-      style={{ background: "var(--accent)", color: "var(--bg)" }}
-    >
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M3 17l6-6 4 4 8-8" /><circle cx="9" cy="11" r="1.4" fill="currentColor" stroke="none" />
-        <circle cx="13" cy="15" r="1.4" fill="currentColor" stroke="none" />
-      </svg>
-    </div>
-  );
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src="/logo.png" alt="Varasi" className="h-9 w-9 rounded-md object-contain" />;
 }
